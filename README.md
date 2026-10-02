@@ -92,8 +92,14 @@ npm run setup:cloudflare    # D1/R2 作成 → デプロイ → パスワード�
 npm run deploy   # ビルド → DB マイグレーション → デプロイ
 ```
 
-GitHub に push するだけで自動デプロイしたい場合は、Cloudflare ダッシュボード → Workers & Pages → studio-aegis → Settings → Builds でこのリポジトリを接続し、
-Build command に `npm run build`、Deploy command に `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy` を指定してください。
+**自動デプロイ(推奨)**: Cloudflare ダッシュボード → Workers & Pages → studio-aegis → Settings → Build でこのリポジトリを接続しておくと、GitHub に push されるたびに自動でビルド・デプロイされます(手元にフォルダは不要)。
+
+| 項目 | 値 |
+|---|---|
+| Branch | `claude/modest-mccarthy-l26qtf` |
+| Build command | `npm run build` |
+| Deploy command | `npm run deploy:ci` |
+| Root directory | `/` |
 
 ### 3. Spotify を有効にする(任意)
 
