@@ -7,6 +7,7 @@ const { pipeline } = require("node:stream/promises");
 const express = require("express");
 const { newId, now } = require("./db");
 const { createSpotifyRouter, fetchOEmbedTitle, parseSpotifyRef } = require("./spotify");
+const { createNotionRouter } = require("./notion");
 
 const FILE_CATEGORIES = ["client_ref", "deliverable", "other"];
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
@@ -153,6 +154,7 @@ function createServer({ store, webDir, port, sessionToken }) {
   );
 
   app.use("/api/spotify", createSpotifyRouter(store, { redirectUri: `${origin}/api/spotify/callback` }));
+  app.use("/api/notion", createNotionRouter(store));
 
   // ---- clients (取引先) ----
   const getClient = (id) => db.prepare("SELECT * FROM clients WHERE id = ?").get(id);

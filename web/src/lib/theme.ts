@@ -22,7 +22,7 @@ function read(): ThemeId {
   } catch {
     /* storage unavailable */
   }
-  return "studio";
+  return "mecha";
 }
 
 /** Apply the saved theme to <html>; call before the first render to avoid a flash. */
@@ -55,5 +55,5 @@ function subscribe(cb: () => void) {
 }
 
 export function useTheme(): ThemeId {
-  return useSyncExternalStore(subscribe, () => (document.documentElement.dataset.theme as ThemeId) || "studio");
+  return useSyncExternalStore(subscribe, () => (document.documentElement.dataset.theme as ThemeId) || "mecha");
 }

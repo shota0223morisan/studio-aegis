@@ -2,9 +2,10 @@
 //
 // Everything runs on this Mac: a small local server (127.0.0.1 only) keeps projects in SQLite and
 // files on disk under ~/Library/Application Support/Studio Aegis/data, and serves the UI.
-// The left pane shows Spotify and Splice as tabs (splice.com refuses iframes, but a separate web
+// The left pane shows Spotify / Amazon MP3 / Splice / a Web browser as tabs (splice.com refuses iframes, but a separate web
 // view is a normal top-level page); the right side is the Studio Aegis UI.
 const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, dialog, session } = require("electron");
+const { execFile } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -66,6 +67,7 @@ function saveState() {
 //  └───────────────────────────────────┴─────────────────────────────┘
 
 const TABS_H = 44;
+const TABS_H_WEB = 84; // the Web tab adds an address bar row
 const PANE_MIN = 380;
 const APP_MIN = 520;
 // Sites that refuse "Electron" in the user agent get a plain Chrome one.
@@ -73,13 +75,28 @@ const CHROME_UA = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/5
 
 const TABS = {
   spotify: { home: "https://open.spotify.com/", host: /(^|\.)spotify\.com$/, partition: "persist:spotify" },
+  // Amazon's DRM-free MP3 download store.
+  amazon: { home: "https://www.amazon.co.jp/b?node=2128134051", host: /(^|\.)amazon\.(co\.jp|com)$/, partition: "persist:amazon" },
   splice: { home: "https://splice.com/sounds", host: SPLICE_HOST, partition: "persist:splice" },
+  // General-purpose browser for research.
+  web: { home: "https://www.google.com/", host: /./, partition: "persist:web" },
 };
+
+/** Which tab a URL belongs to (anything unknown goes to the Web tab). */
+function tabFor(url) {
+  const host = hostOf(url);
+  if (host === "open.spotify.com") return "spotify";
+  if (TABS.amazon.host.test(host)) return "amazon";
+  if (TABS.splice.host.test(host)) return "splice";
+  return "web";
+}
+
+const tabsHeight = () => (pane.tab === "web" ? TABS_H_WEB : TABS_H);
 
 let win = null;
 let appView = null;
 let tabsView = null;
-const content = { spotify: null, splice: null };
+const content = { spotify: null, amazon: null, splice: null, web: null };
 const pane = { open: true, tab: "spotify", ratio: 0.42 };
 
 function paneWidth(width) {
@@ -92,11 +109,12 @@ function layout() {
   const { width, height } = win.getContentBounds();
   const left = paneWidth(width);
   appView.setBounds({ x: left, y: 0, width: width - left, height });
-  if (tabsView) tabsView.setBounds({ x: 0, y: 0, width: left, height: pane.open ? TABS_H : 0 });
+  const top = tabsHeight();
+  if (tabsView) tabsView.setBounds({ x: 0, y: 0, width: left, height: pane.open ? top : 0 });
   for (const [name, view] of Object.entries(content)) {
     if (!view) continue;
     const visible = pane.open && name === pane.tab;
-    view.setBounds(visible ? { x: 0, y: TABS_H, width: left, height: height - TABS_H } : { x: 0, y: 0, width: 0, height: 0 });
+    view.setBounds(visible ? { x: 0, y: top, width: left, height: height - top } : { x: 0, y: 0, width: 0, height: 0 });
     view.setVisible(visible);
   }
 }
@@ -134,12 +152,10 @@ function addContextMenu(contents) {
 
 const loadApp = () => void appView?.webContents.loadURL(`${ORIGIN}/`);
 
-/** Route a link from the app: Spotify / Splice pages open in the left pane, the rest in the browser. */
+/** Route a link from the app into the matching left-pane tab (unknown sites → Web tab). */
 function routeUrl(url) {
-  const host = hostOf(url);
-  if (TABS.splice.host.test(host)) openInPane("splice", url);
-  else if (host === "open.spotify.com") openInPane("spotify", url);
-  else openExternal(url);
+  if (!/^https?:\/\//.test(url)) return;
+  openInPane(tabFor(url), url);
 }
 
 function createAppView() {
@@ -179,16 +195,16 @@ function ensureContent(name) {
   const contents = view.webContents;
   contents.on("will-navigate", (e, url) => {
     const host = hostOf(url);
-    if (tab.host.test(host) || AUTH_HOSTS.test(host)) return;
+    if (tab.host.test(host) || AUTH_HOSTS.test(host) || !/^https?:/.test(url)) return;
     e.preventDefault();
-    openExternal(url);
+    routeUrl(url);
   });
-  // Login popups (Google / Apple / Facebook) open as real windows; same-site links stay in the pane.
+  // Login popups (Google / Apple / Facebook) open as real windows; other links stay in the pane.
   contents.setWindowOpenHandler(({ url }) => {
     const host = hostOf(url);
-    if (AUTH_HOSTS.test(host) && !tab.host.test(host)) return { action: "allow" };
+    if (name !== "web" && AUTH_HOSTS.test(host) && !tab.host.test(host)) return { action: "allow" };
     if (tab.host.test(host)) void contents.loadURL(url);
-    else openExternal(url);
+    else routeUrl(url);
     return { action: "deny" };
   });
   for (const ev of ["did-navigate", "did-navigate-in-page", "page-title-updated", "did-start-loading", "did-stop-loading"]) {
@@ -224,7 +240,7 @@ function togglePane(open = !pane.open) {
 function openInPane(name, url) {
   const tab = TABS[name];
   if (!tab) return;
-  if (url && !tab.host.test(hostOf(url))) return openExternal(url);
+  if (url && !tab.host.test(hostOf(url))) return routeUrl(url);
   setTab(name, true);
   const view = content[name];
   if (url && view && view.webContents.getURL() !== url) void view.webContents.loadURL(url);
@@ -238,6 +254,31 @@ function paneNav(action) {
   else if (action === "reload") wc.reload();
   else if (action === "home") void wc.loadURL(TABS[pane.tab].home);
   else if (action === "external") openExternal(wc.getURL());
+  else if (action === "chrome" || action === "safari") openInBrowser(action, wc.getURL());
+}
+
+/** Open a page in Chrome / Safari specifically (falls back to the default browser). */
+function openInBrowser(browser, url) {
+  if (!/^https?:\/\//.test(url)) return;
+  if (process.platform !== "darwin") return openExternal(url);
+  const appName = browser === "chrome" ? "Google Chrome" : "Safari";
+  execFile("open", ["-a", appName, url], (err) => {
+    if (err) {
+      void dialog.showMessageBox({ message: `${appName} が見つからないため、既定のブラウザで開きます` });
+      openExternal(url);
+    }
+  });
+}
+
+/** Web tab address bar: a URL loads directly, anything else is a Google search. */
+function webGo(input) {
+  const text = String(input ?? "").trim();
+  if (!text) return;
+  let url;
+  if (/^https?:\/\//i.test(text)) url = text;
+  else if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(text)) url = `https://${text}`;
+  else url = `https://www.google.com/search?q=${encodeURIComponent(text)}`;
+  openInPane("web", url);
 }
 
 function createWindow() {
@@ -267,8 +308,7 @@ function createWindow() {
     win = null;
     appView = null;
     tabsView = null;
-    content.spotify = null;
-    content.splice = null;
+    for (const k of Object.keys(content)) content[k] = null;
   });
   loadApp();
 }
@@ -332,6 +372,7 @@ ipcMain.handle("pane:setTab", (_e, name) => setTab(String(name)));
 ipcMain.handle("pane:toggle", (_e, open) => togglePane(typeof open === "boolean" ? open : undefined));
 ipcMain.handle("pane:open", (_e, name, url) => openInPane(String(name), typeof url === "string" ? url : undefined));
 ipcMain.handle("pane:nav", (_e, action) => paneNav(String(action)));
+ipcMain.handle("pane:webGo", (_e, input) => webGo(input));
 // Divider drag from the app view: the pointer's screen X sets the pane width.
 ipcMain.on("pane:drag", (_e, screenX) => {
   if (!win || !pane.open || typeof screenX !== "number") return;
@@ -419,9 +460,13 @@ function buildMenu() {
         { label: pane.open ? "左パネルを隠す" : "左パネルを表示", accelerator: "CmdOrCtrl+Shift+L", click: () => togglePane() },
         { type: "separator" },
         { label: "Spotify", type: "radio", checked: pane.tab === "spotify", accelerator: "CmdOrCtrl+1", click: () => setTab("spotify") },
-        { label: "Splice", type: "radio", checked: pane.tab === "splice", accelerator: "CmdOrCtrl+2", click: () => setTab("splice") },
+        { label: "Amazon(MP3)", type: "radio", checked: pane.tab === "amazon", accelerator: "CmdOrCtrl+2", click: () => setTab("amazon") },
+        { label: "Splice", type: "radio", checked: pane.tab === "splice", accelerator: "CmdOrCtrl+3", click: () => setTab("splice") },
+        { label: "Web", type: "radio", checked: pane.tab === "web", accelerator: "CmdOrCtrl+4", click: () => setTab("web") },
         { type: "separator" },
-        { label: "左パネルのページをブラウザで開く", click: () => paneNav("external") },
+        { label: "Chrome で開く", click: () => paneNav("chrome") },
+        { label: "Safari で開く", click: () => paneNav("safari") },
+        { label: "既定のブラウザで開く", click: () => paneNav("external") },
       ],
     },
     { role: "windowMenu", label: "ウィンドウ" },

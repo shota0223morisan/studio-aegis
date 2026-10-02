@@ -78,6 +78,34 @@ export interface SpotifyStatus {
   redirectUri: string;
 }
 
+export interface NotionOption {
+  name: string;
+  color: string;
+}
+
+export interface NotionProp {
+  type: "text" | "options" | "count" | "other";
+  text?: string;
+  options?: NotionOption[];
+}
+
+export interface NotionIdea {
+  id: string;
+  url: string;
+  title: string;
+  createdAt: string;
+  editedAt: string;
+  props: Record<string, NotionProp>;
+}
+
+export interface NotionIdeas {
+  configured: boolean;
+  items: NotionIdea[];
+  fetchedAt?: number | null;
+  error?: string;
+  dbUrl: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -134,6 +162,11 @@ export const api = {
   updateFile: (fileId: string, patch: Partial<Pick<StoredFile, "category" | "note" | "name">>) =>
     request<StoredFile>(`/api/files/${fileId}`, json("PATCH", patch)),
   deleteFile: (fileId: string) => request(`/api/files/${fileId}`, json("DELETE")),
+
+  notionStatus: () => request<{ configured: boolean; dbId: string; dbUrl: string }>("/api/notion/status"),
+  notionSettings: (patch: { token?: string; db?: string }) =>
+    request<{ configured: boolean; dbId: string; dbUrl: string }>("/api/notion/settings", json("PUT", patch)),
+  notionIdeas: (refresh = false) => request<NotionIdeas>(`/api/notion/ideas${refresh ? "?refresh=1" : ""}`),
 
   spotifyStatus: () => request<SpotifyStatus>("/api/spotify/status"),
   spotifyLogout: () => request("/api/spotify/logout", json("POST")),

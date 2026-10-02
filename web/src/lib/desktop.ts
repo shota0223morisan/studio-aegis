@@ -6,7 +6,7 @@ export interface UpdateInfo {
   url?: string;
 }
 
-export type PaneTab = "spotify" | "splice";
+export type PaneTab = "spotify" | "amazon" | "splice" | "web";
 
 export interface PanePage {
   url: string;
@@ -21,7 +21,9 @@ export interface PaneState {
   tab: PaneTab;
   ratio: number;
   spotify: PanePage | null;
+  amazon: PanePage | null;
   splice: PanePage | null;
+  web: PanePage | null;
 }
 
 export interface AegisDesktop {
@@ -31,7 +33,8 @@ export interface AegisDesktop {
   setPaneTab: (tab: PaneTab) => Promise<void>;
   togglePane: (open?: boolean) => Promise<void>;
   openInPane: (tab: PaneTab, url?: string) => Promise<void>;
-  paneNav: (action: "back" | "forward" | "reload" | "home" | "external") => Promise<void>;
+  paneNav: (action: "back" | "forward" | "reload" | "home" | "external" | "chrome" | "safari") => Promise<void>;
+  webGo: (input: string) => Promise<void>;
   paneDrag: (screenX: number) => void;
   paneDragEnd: () => void;
   onPaneState: (cb: (state: PaneState) => void) => () => void;

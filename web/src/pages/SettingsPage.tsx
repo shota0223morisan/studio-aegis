@@ -1,14 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../lib/api";
 import { desktop, type UpdateInfo } from "../lib/desktop";
-import { useSpotify } from "../lib/SpotifyContext";
 import { ThemeGallery } from "../components/ThemePicker";
 
 export function SettingsPage() {
-  const spotify = useSpotify();
-  const [clientId, setClientId] = useState("");
-  const [saved, setSaved] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<{ version: string; dataDir: string } | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [checking, setChecking] = useState(false);
@@ -17,22 +12,6 @@ export function SettingsPage() {
     document.title = "設定 — Studio Aegis";
     void desktop?.getInfo().then(setInfo);
   }, []);
-
-  async function saveClientId(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSaved(null);
-    try {
-      await api.spotifySetClientId(clientId.trim());
-      await spotify.refreshStatus();
-      setClientId("");
-      setSaved(clientId.trim() ? "保存しました。右上の「Spotify に接続」から接続してください。" : "Client ID を削除しました。");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "保存に失敗しました");
-    }
-  }
-
-  const redirectUri = spotify.status?.redirectUri ?? "";
 
   return (
     <div className="settings-page">
@@ -46,47 +25,7 @@ export function SettingsPage() {
         <ThemeGallery />
       </section>
 
-      <section className="card">
-        <div className="section-head">
-          <h2>Spotify 連携</h2>
-          <span className="muted small">
-            {spotify.status?.connected
-              ? `接続中: ${spotify.status.user?.display_name ?? "Spotify"}`
-              : spotify.status?.configured
-                ? "Client ID 設定済み・未接続"
-                : "未設定(埋め込みプレイヤーは使えます)"}
-          </span>
-        </div>
-        <ol className="steps">
-          <li>
-            <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">
-              Spotify for Developers
-            </a>
-            で「Create app」(API は Web API にチェック)
-          </li>
-          <li>
-            Redirect URI に次を登録:
-            <div className="copy-row">
-              <code>{redirectUri}</code>
-              <button className="btn small" onClick={() => void navigator.clipboard.writeText(redirectUri)}>
-                コピー
-              </button>
-            </div>
-          </li>
-          <li>作成したアプリの Client ID を下に貼り付けて保存(Client Secret は不要)</li>
-        </ol>
-        <form className="inline-form" onSubmit={saveClientId}>
-          <input
-            placeholder={spotify.status?.configured ? "新しい Client ID(空で保存すると削除)" : "Client ID(32 文字)"}
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-          />
-          <button className="btn primary">保存</button>
-        </form>
-        {saved && <p className="hint">{saved}</p>}
-        {error && <p className="error">{error}</p>}
-        <p className="hint small">Spotify の開発者向けルール上、アプリ所有者に Spotify Premium が必要です。</p>
-      </section>
+      <NotionSettings />
 
       {desktop && (
         <section className="card">
@@ -141,5 +80,91 @@ export function SettingsPage() {
         </section>
       )}
     </div>
+  );
+}
+
+function NotionSettings() {
+  const [status, setStatus] = useState<{ configured: boolean; dbUrl: string } | null>(null);
+  const [token, setToken] = useState("");
+  const [db, setDb] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    void api.notionStatus().then((s) => {
+      setStatus(s);
+      setDb(s.dbUrl);
+    });
+  }, []);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    try {
+      const s = await api.notionSettings({ ...(token.trim() ? { token: token.trim() } : {}), db });
+      setStatus(s);
+      setToken("");
+      if (!s.configured) return setMessage("保存しました。トークンも入れると表示されます。");
+      setTesting(true);
+      const r = await api.notionIdeas(true);
+      setMessage(r.error ? null : `つながりました。アイデア ${r.items.length} 件を読み込みました。`);
+      if (r.error) setError(r.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存に失敗しました");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="section-head">
+        <h2>Notion(アイデア)</h2>
+        <span className="muted small">{status?.configured ? "接続設定済み" : "未設定"}</span>
+      </div>
+      <p className="small">曲の画面の「アイデア」に、Notion の「🎛 制作アイディア」データベースを表示します(読むだけで、Notion 側は変更しません)。</p>
+      <ol className="steps">
+        <li>
+          <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noreferrer">
+            Notion のインテグレーション
+          </a>
+          で「新しいインテグレーション」(内部)を作り、トークン(ntn_…)をコピー。<b>Lyric Machine で使っているトークンがあればそれで OK</b>
+        </li>
+        <li>Notion で「🎛 制作アイディア」を開き、右上の「…」→「接続」からそのインテグレーションを追加</li>
+        <li>下にトークンを貼り付けて保存(データベースの URL は最初から入っています)</li>
+      </ol>
+      <form className="stack-form" onSubmit={save}>
+        <input
+          type="password"
+          placeholder={status?.configured ? "トークン(変更するときだけ入力)" : "トークン ntn_…"}
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          autoComplete="off"
+        />
+        <input placeholder="データベースの URL" value={db} onChange={(e) => setDb(e.target.value)} />
+        <div className="row">
+          <button className="btn primary" disabled={testing}>
+            {testing ? "確認中…" : "保存して接続を確認"}
+          </button>
+          {status?.configured && (
+            <button
+              type="button"
+              className="btn ghost small"
+              onClick={async () => {
+                if (!window.confirm("Notion のトークンを削除しますか?")) return;
+                setStatus(await api.notionSettings({ token: "" }));
+                setMessage("トークンを削除しました");
+              }}
+            >
+              トークンを削除
+            </button>
+          )}
+        </div>
+      </form>
+      {message && <p className="hint">{message}</p>}
+      {error && <p className="error">{error}</p>}
+    </section>
   );
 }

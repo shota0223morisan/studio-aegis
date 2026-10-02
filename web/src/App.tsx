@@ -3,7 +3,6 @@ import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, type Session } from "./lib/api";
 import { desktop, type UpdateInfo } from "./lib/desktop";
 import { LibraryProvider } from "./lib/library";
-import { SpotifyProvider } from "./lib/SpotifyContext";
 import { usePane } from "./lib/usePane";
 import { HomePage } from "./pages/HomePage";
 import { ClientsPage } from "./pages/ClientsPage";
@@ -11,8 +10,6 @@ import { ClientPage } from "./pages/ClientPage";
 import { SongPage } from "./pages/SongPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PaneTabsPage } from "./pages/PaneTabsPage";
-import { PlayerBar } from "./components/PlayerBar";
-import { SpotifyAccount } from "./components/SpotifyAccount";
 import { ThemeDots } from "./components/ThemePicker";
 import { Sidebar } from "./components/Sidebar";
 import { PaneDivider } from "./components/PaneDivider";
@@ -57,8 +54,7 @@ function Shell() {
   if (!session) return <div className="center-screen muted">読み込み中…</div>;
 
   return (
-    <SpotifyProvider>
-      <LibraryProvider>
+    <LibraryProvider>
         <div className="app">
           {pane?.open && <PaneDivider />}
           <header className="topbar">
@@ -93,7 +89,6 @@ function Shell() {
             </nav>
             <div className="topbar-right">
               <ThemeDots />
-              <SpotifyAccount />
             </div>
           </header>
           {update?.available && (
@@ -120,9 +115,7 @@ function Shell() {
               </Routes>
             </main>
           </div>
-          <PlayerBar />
         </div>
-      </LibraryProvider>
-    </SpotifyProvider>
+    </LibraryProvider>
   );
 }

@@ -5,13 +5,11 @@ import { formatDate } from "../lib/format";
 import { useLibrary } from "../lib/library";
 import { saveLabel, useAutosave } from "../lib/useAutosave";
 import { Thumb } from "../components/Thumb";
-import { SpotifySection } from "../components/SpotifySection";
-import { SpliceSection } from "../components/SpliceSection";
 import { MarkdownMemo } from "../components/MarkdownMemo";
-import { IdeaMemo } from "../components/IdeaMemo";
+import { IdeasPanel } from "../components/IdeasPanel";
 import { FilesSection } from "../components/FilesSection";
 
-/** One song's workspace: the client's brief, our notes, ideas, references, Splice and files. */
+/** One song's workspace: the client's brief (with attached audio), our notes, Notion ideas, files. */
 export function SongPage({ session }: { session: Session }) {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -52,18 +50,31 @@ export function SongPage({ session }: { session: Session }) {
       />
 
       <div className="sections">
-        <section className="card brief-card">
+        <section className="card brief-card span-2">
           <MarkdownMemo
             key={`brief-${project.id}`}
+            index="01"
+            icon="✉"
             title="先方からの指示"
             initial={project.brief}
             save={save("brief")}
-            placeholder={"先方から届いた依頼・修正指示を貼り付け\n\n- 尺: \n- 納期: \n- イメージ: \n- 修正: "}
-          />
+            placeholder={"先方から届いた依頼・修正指示を貼り付け(Spotify や YouTube のリンクは左パネルで開けます)\n\n- 尺: \n- 納期: \n- イメージ: \n- 修正: "}
+          >
+            <FilesSection
+              bare
+              only={["client_ref"]}
+              projectId={project.id}
+              files={project.files}
+              maxUploadBytes={session.maxUploadBytes}
+              onFilesChange={(files) => patch({ files })}
+            />
+          </MarkdownMemo>
         </section>
-        <section className="card">
+        <section className="card span-2">
           <MarkdownMemo
             key={`memo-${project.id}`}
+            index="02"
+            icon="✎"
             title="こちらのメモ"
             initial={project.structureMemo}
             save={save("structureMemo")}
@@ -71,16 +82,13 @@ export function SongPage({ session }: { session: Session }) {
           />
         </section>
         <section className="card span-2">
-          <IdeaMemo key={`idea-${project.id}`} projectId={project.id} initial={project.ideaMemo} />
-        </section>
-        <section className="card">
-          <SpotifySection projectId={project.id} refs={project.refs} onRefsChange={(refs) => patch({ refs })} />
-        </section>
-        <section className="card">
-          <SpliceSection project={project} onChange={patch} />
+          <IdeasPanel index="03" />
         </section>
         <section className="card span-2">
           <FilesSection
+            index="04"
+            title="ファイル"
+            only={["deliverable", "other"]}
             projectId={project.id}
             files={project.files}
             maxUploadBytes={session.maxUploadBytes}
@@ -91,6 +99,12 @@ export function SongPage({ session }: { session: Session }) {
     </div>
   );
 }
+
+// Pseudo-random but stable bar timings for the hero's spectrum strip.
+const WAVE = Array.from({ length: 64 }, (_, i) => ({
+  delay: -((i * 137) % 1000) / 1000,
+  duration: 0.55 + ((i * 53) % 70) / 100,
+}));
 
 function SongHeader({
   project,
@@ -120,9 +134,11 @@ function SongHeader({
   }
 
   return (
-    <div className="project-header">
+    <div className="song-hero">
+      <div className="song-hero-bg" style={project.thumbnailUrl ? { backgroundImage: `url(${project.thumbnailUrl})` } : undefined} aria-hidden />
+      <div className="project-header">
       <button className="thumb-edit" onClick={() => fileInput.current?.click()} title="サムネイルを変更">
-        <Thumb name={project.name} url={project.thumbnailUrl} className="thumb-md" />
+        <Thumb name={project.name} url={project.thumbnailUrl} className="thumb-lg" />
         <span className="thumb-edit-label">変更</span>
       </button>
       <input
@@ -190,6 +206,24 @@ function SongHeader({
         <button className="btn danger small" onClick={onDelete}>
           曲を削除
         </button>
+      </div>
+      </div>
+      <div className="song-hero-mark" aria-hidden>
+        {[...project.name.trim()][0] ?? ""}
+      </div>
+      <div className="song-hero-wave" aria-hidden>
+        {WAVE.map((w, i) => (
+          <i key={i} style={{ animationDelay: `${w.delay}s`, animationDuration: `${w.duration}s` }} />
+        ))}
+      </div>
+      <div className="song-hero-status" aria-hidden>
+        <span className="eq">
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+        NOW WORKING
       </div>
     </div>
   );

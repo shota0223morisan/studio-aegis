@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("aegisDesktop", {
   togglePane: (open) => ipcRenderer.invoke("pane:toggle", open),
   openInPane: (tab, url) => ipcRenderer.invoke("pane:open", tab, url),
   paneNav: (action) => ipcRenderer.invoke("pane:nav", action),
+  webGo: (input) => ipcRenderer.invoke("pane:webGo", input),
   paneDrag: (screenX) => ipcRenderer.send("pane:drag", screenX),
   paneDragEnd: () => ipcRenderer.send("pane:dragEnd"),
   onPaneState: (cb) => subscribe("pane-state", cb),

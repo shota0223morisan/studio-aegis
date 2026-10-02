@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { api, uploadFiles, type FileCategory, type StoredFile } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
 
-const CATEGORIES: { value: FileCategory; label: string; hint: string }[] = [
-  { value: "client_ref", label: "先方リファレンス", hint: "先方から届いた参考音源・デモ" },
+export const CATEGORIES: { value: FileCategory; label: string; hint: string }[] = [
+  { value: "client_ref", label: "添付音源", hint: "先方からの参考音源・デモ・指示音声" },
   { value: "deliverable", label: "完成版", hint: "納品ファイル・ミックス/マスター" },
   { value: "other", label: "その他", hint: "ステム・資料など" },
 ];
@@ -17,11 +17,21 @@ export function FilesSection({
   files,
   maxUploadBytes,
   onFilesChange,
+  only,
+  title = "ファイル",
+  index,
+  bare = false,
 }: {
   projectId: string;
   files: StoredFile[];
   maxUploadBytes: number;
   onFilesChange: (files: StoredFile[]) => void;
+  /** Limit to these categories (e.g. the brief card shows only client references). */
+  only?: FileCategory[];
+  title?: string;
+  index?: string;
+  /** Render without the section header (embedded in another card). */
+  bare?: boolean;
 }) {
   const filesRef = useRef(files);
   filesRef.current = files;
@@ -38,14 +48,20 @@ export function FilesSection({
 
   const addFiles = (created: StoredFile[]) => onFilesChange([...created, ...filesRef.current]);
 
+  const cats = CATEGORIES.filter((c) => !only || only.includes(c.value));
   return (
     <>
-      <div className="section-head">
-        <h2>ファイル</h2>
-        <span className="muted small">1 ファイル最大 {formatBytes(maxUploadBytes)}</span>
-      </div>
-      <div className="file-groups">
-        {CATEGORIES.map((c) => (
+      {!bare && (
+        <div className="section-head">
+          {index && <span className="sec-index">{index}</span>}
+          <span className="sec-icon" aria-hidden>◉</span>
+          <h2>{title}</h2>
+          <span className="muted small">1 ファイル最大 {formatBytes(maxUploadBytes)}</span>
+          <span className="sec-line" aria-hidden />
+        </div>
+      )}
+      <div className={`file-groups ${bare ? "bare" : ""}`}>
+        {cats.map((c) => (
           <FileGroup
             key={c.value}
             projectId={projectId}
