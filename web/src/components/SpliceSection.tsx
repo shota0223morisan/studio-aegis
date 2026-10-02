@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, type ProjectDetail } from "../lib/api";
+import { desktop } from "../lib/desktop";
 
 /**
  * Splice Stack link.
@@ -8,6 +9,9 @@ import { api, type ProjectDetail } from "../lib/api";
  * `X-Frame-Options: SAMEORIGIN` and `Content-Security-Policy: frame-ancestors 'self'`, and
  * Splice offers no public embed/oEmbed or third-party web API. So we store the Stack's share
  * URL and open it in a new tab, or in a side window sized to sit next to Studio Aegis.
+ *
+ * In the desktop app, Splice opens in a side panel inside the app window instead (a separate
+ * web view is a top-level page, so the frame restrictions don't apply).
  */
 export function SpliceSection({
   project,
@@ -20,6 +24,13 @@ export function SpliceSection({
   const [url, setUrl] = useState(project.spliceUrl);
   const [label, setLabel] = useState(project.spliceLabel);
   const [error, setError] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  useEffect(() => {
+    if (!desktop) return;
+    void desktop.isSpliceOpen().then(setPanelOpen);
+    return desktop.onSplicePanel(setPanelOpen);
+  }, []);
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -86,18 +97,36 @@ export function SpliceSection({
         <div className="splice-card">
           <div className="splice-label">{project.spliceLabel || "Splice Stack"}</div>
           <div className="splice-url muted small">{project.spliceUrl}</div>
-          <div className="row">
-            <a className="btn primary" href={project.spliceUrl} target="_blank" rel="noreferrer">
-              Splice で開く ↗
-            </a>
-            <button className="btn" onClick={openSideWindow} title="Studio Aegis の横に並べて開きます">
-              サイドウィンドウで開く
-            </button>
-          </div>
+          {desktop ? (
+            <div className="row">
+              <button className="btn primary" onClick={() => void desktop!.openSplice(project.spliceUrl)}>
+                アプリ内で開く
+              </button>
+              {panelOpen && (
+                <button className="btn" onClick={() => void desktop!.closeSplice()}>
+                  パネルを閉じる
+                </button>
+              )}
+              <a className="btn ghost" href={project.spliceUrl} target="_blank" rel="noreferrer">
+                ブラウザで開く ↗
+              </a>
+            </div>
+          ) : (
+            <div className="row">
+              <a className="btn primary" href={project.spliceUrl} target="_blank" rel="noreferrer">
+                Splice で開く ↗
+              </a>
+              <button className="btn" onClick={openSideWindow} title="Studio Aegis の横に並べて開きます">
+                サイドウィンドウで開く
+              </button>
+            </div>
+          )}
         </div>
       )}
       <p className="hint small">
-        ※ Splice はページの埋め込み(iframe)を禁止しており、公開 API もないため、アプリ内表示はできません。リンクから開く方式にしています。
+        {desktop
+          ? "※ 右側のパネルに Splice が開きます(⌘⇧S で開閉)。Splice へのログインはアプリ内に保存されます。"
+          : "※ Splice はページの埋め込み(iframe)を禁止しており、公開 API もないため、ブラウザ版ではアプリ内表示はできません。リンクから開く方式にしています(デスクトップ版ではアプリ内に表示できます)。"}
       </p>
     </>
   );

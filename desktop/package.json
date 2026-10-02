@@ -1,0 +1,33 @@
+{
+  "name": "studio-aegis-desktop",
+  "productName": "Studio Aegis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Studio Aegis desktop app (macOS)",
+  "main": "src/main.js",
+  "author": "Studio Aegis",
+  "studioAegis": {
+    "defaultServerUrl": "https://studio-aegis.mohrisan.workers.dev"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac dir --arm64 --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "dev.studioaegis.desktop",
+    "productName": "Studio Aegis",
+    "copyright": "Studio Aegis",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["src/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "build/icon.png",
+      "identity": null,
+      "darkModeSupport": true
+    }
+  }
+}

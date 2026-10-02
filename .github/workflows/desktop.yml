@@ -1,0 +1,88 @@
+name: Desktop app (macOS)
+
+# Builds the Studio Aegis .dmg on a macOS runner and publishes it as a GitHub Release
+# (tag desktop-v<version from desktop/package.json>).
+on:
+  push:
+    branches: [main, claude/modest-mccarthy-l26qtf]
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - run: npm ci
+
+      - name: Build app bundles (Apple Silicon + Intel)
+        run: npx electron-builder --mac dir --arm64 --x64 --publish never
+
+      # No Apple Developer ID: sign ad-hoc so the app launches on Apple Silicon
+      # (users approve it once in System Settings → Privacy & Security).
+      - name: Ad-hoc sign and package DMGs
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          find dist -maxdepth 2 -name "Studio Aegis.app" -print0 | while IFS= read -r -d '' app; do
+            exe="$app/Contents/MacOS/Studio Aegis"
+            case "$(lipo -archs "$exe")" in
+              arm64) arch=apple-silicon ;;
+              x86_64) arch=intel ;;
+              *) echo "unexpected arch for $app"; exit 1 ;;
+            esac
+            codesign --force --deep --sign - "$app"
+            codesign --verify --deep --strict "$app"
+            stage="$(mktemp -d)"
+            cp -R "$app" "$stage/"
+            ln -s /Applications "$stage/Applications"
+            hdiutil create -volname "Studio Aegis" -srcfolder "$stage" -ov -format UDZO "out/Studio-Aegis-${arch}.dmg"
+          done
+          ls -la out
+          test "$(ls out/*.dmg | wc -l)" -eq 2
+
+      - name: Read version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-aegis-mac
+          path: desktop/out/*.dmg
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Studio Aegis for Mac ${{ steps.version.outputs.version }}
+          files: desktop/out/*.dmg
+          overwrite_files: true
+          body: |
+            ## ダウンロード
+            - **Apple Silicon(M1 / M2 / M3 / M4 …)** → `Studio-Aegis-apple-silicon.dmg`
+            - **Intel Mac** → `Studio-Aegis-intel.dmg`
+            (どちらか分からないときは  メニュー →「この Mac について」の「チップ」を確認)
+
+            ## インストール
+            1. dmg を開き、Studio Aegis を「アプリケーション」へドラッグ
+            2. 初回だけ: アプリを開こうとすると「開けません」と出るので、
+               **システム設定 → プライバシーとセキュリティ** の下の方にある「このまま開く」をクリック
+               (Apple の有料開発者署名をしていない個人用アプリのため。2 回目以降は普通に開けます)

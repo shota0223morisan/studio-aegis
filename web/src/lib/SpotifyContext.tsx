@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type SpotifyStatus } from "./api";
+import { desktop } from "./desktop";
 
 /**
  * App-wide Spotify state: OAuth connection + an in-browser Web Playback SDK device.
@@ -67,9 +68,10 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
     void refreshStatus();
   }, [refreshStatus]);
 
-  // Boot the in-app player once connected.
+  // Boot the in-app player once connected. The desktop app's Chromium has no Widevine DRM,
+  // which the Web Playback SDK needs, so there playback goes to the Spotify app instead.
   useEffect(() => {
-    if (!status?.connected) return;
+    if (!status?.connected || desktop) return;
     let cancelled = false;
     loadSdk()
       .then(() => {
@@ -132,9 +134,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
         await api.spotifyPlay(uri, deviceId ?? undefined);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setPlayerError(
-          deviceId ? msg : `${msg}(アプリ内プレイヤーが未準備のため、Spotify アプリ側で何か再生中にしてから再試行してください)`,
-        );
+        setPlayerError(deviceId ? msg : `${msg}(Spotify アプリを起動してから再試行してください)`);
       }
     },
     [deviceId],

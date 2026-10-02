@@ -274,7 +274,20 @@ spotify.post("/play", async (c) => {
     ref.kind === "track" || ref.kind === "episode"
       ? { uris: [`spotify:${ref.kind}:${ref.id}`] }
       : { context_uri: `spotify:${ref.kind}:${ref.id}` };
-  const qs = typeof deviceId === "string" && deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : "";
-  await api(c.env, `/me/player/play${qs}`, { method: "PUT", body: JSON.stringify(body) });
+  let target = typeof deviceId === "string" && deviceId ? deviceId : "";
+  if (!target) {
+    // No in-browser player (desktop app / iOS): use Spotify Connect. Prefer the active device,
+    // then an open Spotify desktop app, so playback works even when nothing is playing yet.
+    const { devices = [] } =
+      (await api<{ devices?: { id: string | null; is_active: boolean; type: string; is_restricted: boolean }[] }>(
+        c.env,
+        "/me/player/devices",
+      )) ?? {};
+    const usable = devices.filter((d) => d.id && !d.is_restricted);
+    const pick = usable.find((d) => d.is_active) ?? usable.find((d) => d.type === "Computer") ?? usable[0];
+    if (!pick) throw new SpotifyError(404, "再生できるデバイスがありません。Spotify アプリを起動してください");
+    target = pick.id!;
+  }
+  await api(c.env, `/me/player/play?device_id=${encodeURIComponent(target)}`, { method: "PUT", body: JSON.stringify(body) });
   return c.json({ ok: true });
 });

@@ -16,12 +16,27 @@ DAW 以外の制作まわりを 1 か所に集約する、個人用の音楽制�
   - 曲/アルバム/プレイリスト等の URL・URI を貼ると埋め込みプレイヤーをページ内に表示(Spotify 設定なしで使える)
   - Spotify 接続時: 検索、マイプレイリスト閲覧、**アプリ内プレイヤー(Web Playback SDK)** でのフル再生・一時停止・スキップ・シーク
   - リファレンスごとにメモ・並べ替え
-- **Splice** — Stack の共有 URL を 1 件登録。「Splice で開く」(新規タブ)/「サイドウィンドウで開く」(画面右側に並べて開く)
+- **Splice** — Stack の共有 URL を 1 件登録。「Splice で開く」(新規タブ)/「サイドウィンドウで開く」(画面右側に並べて開く)。デスクトップ版ではアプリ内のパネルに表示
 - **構成・進行イメージ** — Markdown(表・見出し・リスト等 GFM 対応)、編集/分割/プレビュー切替、自動保存
 - **雑多アイデア** — 箇条書き書き殴り用。Enter で次の「- 」を自動挿入、空項目で Enter するとリスト終了、Tab/Shift+Tab でインデント、自動保存
 - **ファイル** — 「先方リファレンス / 完成版 / その他」に分けてアップロード(ドラッグ&ドロップ・複数可、進捗表示)。ブラウザ内再生(シーク対応)、ダウンロード、分類変更、削除
   - wav / mp3 / aiff / flac / m4a / ogg / zip など。1 ファイル上限は既定 5GB
   - 再生は同時に 1 つだけ(他のファイルや Spotify は自動で一時停止)
+
+## デスクトップアプリ(Mac)
+
+`.dmg` でインストールできる Mac アプリ版があります。中身は Cloudflare にデプロイした Studio Aegis を表示するので、**スマホやほかの PC とデータは同期**されます(Web 版をデプロイ・更新すればアプリ側の更新は不要)。
+
+- **ダウンロード**: GitHub の [Releases](../../releases) から
+  - Apple Silicon(M1 以降)→ `Studio-Aegis-apple-silicon.dmg` / Intel Mac → `Studio-Aegis-intel.dmg`
+- **インストール**: dmg を開いて「アプリケーション」へドラッグ。初回だけ「開けません」と出るので、システム設定 → プライバシーとセキュリティ →「このまま開く」(Apple の有料署名をしていない個人用アプリのため)
+- **デスクトップ版だけの機能**
+  - **Splice をアプリ内に表示**: 「アプリ内で開く」で右側のパネルに Splice が開く(⌘⇧S で開閉、ログインは保存される)。ブラウザでは Splice が埋め込みを拒否しますが、アプリ内の独立した画面としてなら表示できます
+  - Dock アイコン、Mac 標準のメニュー・ショートカット
+- Spotify のフル再生は **Spotify アプリで鳴ります**(アプリ版の内蔵ブラウザには Spotify の再生に必要な DRM が入っていないため。Spotify アプリを起動しておけば「▶ Spotify アプリで再生」で再生できます)
+- 接続先を変えるときは メニュー → Studio Aegis → 「サーバー URL を変更…」
+
+ビルドは `desktop/` を変更して push すると GitHub Actions(macOS)が自動で行い、Release に dmg を添付します(`.github/workflows/desktop.yml`)。ローカルで動かす場合は `cd desktop && npm install && npm start`(`AEGIS_SERVER_URL=http://127.0.0.1:8787 npm start` でローカルの開発サーバーに接続)。
 
 ## 技術構成
 
@@ -130,6 +145,8 @@ npx wrangler d1 export studio-aegis --remote --output backup.sql   # 案件・�
 **採用した方式**: Stack の共有リンク(Stack 画面の共有ボタンで発行)を案件ごとに保存し、
 - 「Splice で開く」= 新規タブ
 - 「サイドウィンドウで開く」= 画面右側に縦長ウィンドウで開き、Studio Aegis と並べて使える
+
+**デスクトップ版**では、Splice をアプリ内の独立した Web ビュー(iframe ではない)として右側パネルに表示しているため、アプリ内表示を実現しています。
 
 Splice が将来 embed を提供した場合は `web/src/components/SpliceSection.tsx` を差し替えるだけで対応できます。
 

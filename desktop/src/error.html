@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" />
+    <title>Studio Aegis — 接続できません</title>
+    <link rel="stylesheet" href="page.css" />
+  </head>
+  <body>
+    <div class="box">
+      <h1>接続できません</h1>
+      <p id="message">サーバーに接続できませんでした。ネットワークを確認して再試行してください。</p>
+      <p><code id="detail"></code></p>
+      <div class="row">
+        <button class="primary" id="retry">再試行</button>
+        <button id="setup">接続先を変更</button>
+      </div>
+    </div>
+    <script>
+      const q = new URLSearchParams(location.search);
+      const code = Number(q.get("code"));
+      // -100..-199 are connection/SSL errors; a brand-new workers.dev subdomain shows these
+      // until its certificate is issued.
+      if (code <= -100 && code > -200 || code <= -200 && code > -300) {
+        document.getElementById("message").textContent =
+          "サーバーとの安全な接続を確立できませんでした。サブドメインを作った直後なら、証明書の発行待ちの可能性があります(数分〜1時間ほど)。少し待ってから再試行してください。";
+      }
+      document.getElementById("detail").textContent = `${q.get("description") || ""} (${q.get("code")}) ${q.get("url") || ""}`;
+      document.getElementById("retry").onclick = () => window.aegisDesktop.retry();
+      document.getElementById("setup").onclick = () => window.aegisDesktop.showSetup();
+    </script>
+  </body>
+</html>

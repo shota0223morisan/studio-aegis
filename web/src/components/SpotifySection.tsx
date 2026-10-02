@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, type SpotifyItem, type SpotifyKind, type SpotifyRef } from "../lib/api";
 import { useSpotify } from "../lib/SpotifyContext";
+import { desktop } from "../lib/desktop";
 
 const KIND_LABEL: Record<SpotifyKind, string> = {
   track: "曲",
@@ -98,6 +99,9 @@ export function SpotifySection({
       {spotify.status?.configured && !connected && (
         <p className="hint">右上の「Spotify に接続」で検索・プレイリスト・アプリ内再生(Premium)が使えるようになります。</p>
       )}
+      {connected && desktop && (
+        <p className="hint">デスクトップ版のフル再生は Spotify アプリで鳴ります(Spotify アプリを起動しておいてください)。</p>
+      )}
 
       {browser && connected && <SpotifyBrowser existing={refs} onAdd={(item) => add(item.uri, item)} />}
 
@@ -125,9 +129,9 @@ export function SpotifySection({
                     <button
                       className={`btn small ${spotify.nowPlaying?.uri === ref.uri ? "primary" : ""}`}
                       onClick={() => void spotify.play(ref.uri)}
-                      title={spotify.deviceId ? "アプリ内プレイヤーでフル再生" : "Spotify Connect の再生中デバイスで再生"}
+                      title={spotify.deviceId ? "アプリ内プレイヤーでフル再生" : "Spotify アプリ(Spotify Connect)で再生"}
                     >
-                      ▶ フル再生
+                      {desktop ? "▶ Spotify アプリで再生" : "▶ フル再生"}
                     </button>
                   )}
                   <a
