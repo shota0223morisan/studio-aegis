@@ -4,6 +4,8 @@
   "main": "worker/src/index.ts",
   "compatibility_date": "2026-09-01",
   "workers_dev": true,
+  // No per-version preview URLs: one public address is enough for a personal app.
+  "preview_urls": false,
   "observability": { "enabled": true },
 
   // Built SPA (npm run build). /api/* always goes to the Worker (incl. the Spotify OAuth
