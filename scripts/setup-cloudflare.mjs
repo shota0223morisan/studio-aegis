@@ -78,7 +78,8 @@ wrangler(["d1", "migrations", "apply", "DB", "--remote"], { interactive: true })
 step("ビルドしてデプロイ");
 const build = spawnSync("npm", ["run", "build"], { cwd: root, stdio: "inherit" });
 if (build.status !== 0) process.exit(1);
-wrangler(["deploy"]);
+// Interactive: on a fresh account wrangler asks to register a workers.dev subdomain here.
+wrangler(["deploy"], { interactive: true });
 
 step("ログインパスワード (APP_PASSWORD) を設定");
 console.log("  未設定のあいだ、アプリは安全のため停止した状態になります。");

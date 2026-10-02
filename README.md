@@ -66,6 +66,7 @@ npx wrangler login          # ブラウザで Cloudflare にログイン
 npm run setup:cloudflare    # D1/R2 作成 → デプロイ → パスワード設定 まで自動
 ```
 
+途中で「workers.dev のサブドメインを登録しますか」と聞かれたら `y` を押して好きな名前を入力します(URL の一部になります)。
 最後に表示される `https://studio-aegis.<サブドメイン>.workers.dev` を開き、設定したパスワードでログインすれば使えます。スマホならホーム画面に追加しておくと便利です。
 
 > 安全のため、**パスワード (`APP_PASSWORD`) が未設定のままだとアプリは停止**し、案件やファイルは一切見えません。変更は `npx wrangler secret put APP_PASSWORD`。
