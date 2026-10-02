@@ -30,6 +30,22 @@ export function App() {
 
   if (error) return <div className="center-screen muted">{error}</div>;
   if (!session) return <div className="center-screen muted">読み込み中…</div>;
+  if (session.setupRequired) {
+    return (
+      <div className="center-screen">
+        <div className="login">
+          <h1 className="brand-lg">Studio Aegis</h1>
+          <p>
+            パスワードが未設定のため、安全のため停止しています。ターミナルで
+            <br />
+            <code>npx wrangler secret put APP_PASSWORD</code>
+            <br />
+            を実行してから、このページを再読み込みしてください。
+          </p>
+        </div>
+      </div>
+    );
+  }
   if (session.authRequired && !session.authenticated) return <LoginPage onLoggedIn={load} />;
 
   return (

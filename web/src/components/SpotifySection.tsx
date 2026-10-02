@@ -91,7 +91,7 @@ export function SpotifySection({
 
       {!spotify.status?.configured && (
         <p className="hint">
-          埋め込みプレイヤーで再生できます。検索・プレイリスト取得・アプリ内プレイヤーを使うには、サーバーに
+          埋め込みプレイヤーで再生できます。検索・プレイリスト取得・アプリ内プレイヤーを使うには、シークレット
           <code>SPOTIFY_CLIENT_ID</code> / <code>SPOTIFY_CLIENT_SECRET</code> を設定してください(README 参照)。
         </p>
       )}

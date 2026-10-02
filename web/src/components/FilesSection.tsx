@@ -97,7 +97,8 @@ function FileGroup({
     setError(null);
     setProgress(0);
     try {
-      onUploaded(await uploadFiles(projectId, category.value, list, setProgress));
+      // Show each file as soon as it finishes, so a later failure doesn't hide earlier ones.
+      await uploadFiles(projectId, category.value, list, setProgress, (f) => onUploaded([f]));
     } catch (e) {
       setError(e instanceof Error ? e.message : "アップロードに失敗しました");
     } finally {

@@ -1,0 +1,4 @@
+# ローカル開発用のシークレット。コピーして .dev.vars として使います(git には入りません)
+APP_PASSWORD=
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=

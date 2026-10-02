@@ -20,77 +20,101 @@ DAW 以外の制作まわりを 1 か所に集約する、個人用の音楽制�
 - **構成・進行イメージ** — Markdown(表・見出し・リスト等 GFM 対応)、編集/分割/プレビュー切替、自動保存
 - **雑多アイデア** — 箇条書き書き殴り用。Enter で次の「- 」を自動挿入、空項目で Enter するとリスト終了、Tab/Shift+Tab でインデント、自動保存
 - **ファイル** — 「先方リファレンス / 完成版 / その他」に分けてアップロード(ドラッグ&ドロップ・複数可、進捗表示)。ブラウザ内再生(シーク対応)、ダウンロード、分類変更、削除
-  - wav / mp3 / aiff / flac / m4a / ogg など。1 ファイル上限は既定 1GB(`MAX_UPLOAD_MB`)
+  - wav / mp3 / aiff / flac / m4a / ogg / zip など。1 ファイル上限は既定 5GB
   - 再生は同時に 1 つだけ(他のファイルや Spotify は自動で一時停止)
 
 ## 技術構成
 
+**Cloudflare 上で完結するサーバーレス構成**です。自分のマシンを起動しておく必要はなく、使っていないときは何も動きません。
+
 ```
-web/     React + Vite + TypeScript(SPA)
-server/  Node.js (Express) + SQLite(node:sqlite 組み込み)+ ローカルディスクにファイル保存
-data/    aegis.db(案件・メモ・リファレンス)と uploads/<案件ID>/(音源・サムネ)
+web/            React + Vite + TypeScript(SPA)… Workers Static Assets で配信
+worker/         Cloudflare Worker(Hono)… API・認証・Spotify 連携
+                ├ D1 … 案件・メモ・リファレンス・ファイル情報(SQLite 互換 DB)
+                └ R2 … アップロードした音源・サムネイル
+wrangler.jsonc  Cloudflare の設定
 ```
 
-- 依存はネイティブビルド不要(SQLite は Node 22 組み込み)。Node.js **22.13 以上**が必要
-- データは `data/` フォルダ 1 つにまとまるので、**バックアップはこのフォルダをコピーするだけ**
+- アップロードは 20MB ずつに分割して R2 に直接書き込むので、数 GB の WAV / ステム zip でも OK(既定の上限は 1 ファイル 5GB、`MAX_UPLOAD_MB`)
+- 再生は Range リクエスト対応(長い WAV でもシーク可能)
 - 並び順は API 側で `sort=updated | deadline | pinned` を用意済み(UI は「最終更新順」のみ有効。DB に `deadline` / `pinned` 列も確保済み)
 
-## ホスティングの判断
+### なぜ Cloudflare か
 
-「個人用・複数デバイスからアクセス」「大きな WAV を置く」という要件から、**自宅の常時起動マシン(Mac mini / PC / NAS)で動かし、Tailscale で自分のデバイスからだけ HTTPS アクセスする**構成を推奨します。
+| 要件 | Cloudflare での対応 |
+|---|---|
+| 常時起動マシンを使わない | Workers はリクエストが来たときだけ動く。サーバー管理なし |
+| 複数デバイスからアクセス | `https://studio-aegis.<サブドメイン>.workers.dev` でどこからでも |
+| 大きな音源ファイル | R2 は**転送量(ダウンロード・再生)が無料**、保存 10GB まで無料 |
+| HTTPS | 最初から HTTPS(Spotify の Redirect URI・Web Playback SDK の条件を満たす) |
+| 費用 | 個人利用なら基本**無料枠内**。音源が 10GB を超えた分だけ約 $0.015/GB・月(100GB でも月 $1.35 程度) |
 
-- 音源ファイルが増えてもクラウドのストレージ費用がかからない
-- インターネットに公開しないので攻撃面が小さい(それでも `APP_PASSWORD` は設定推奨)
-- `tailscale serve` で `https://<マシン名>.<tailnet>.ts.net` の正規 HTTPS が得られる
-  → Spotify の Redirect URI(HTTPS 必須)と Web Playback SDK(セキュアコンテキスト必須)の条件を満たせる
-
-外出先の回線や自宅マシンを用意できない場合は、VPS や Fly.io/Railway 等(永続ボリューム付き)に同じ Docker イメージを載せても動きます。その場合は **必ず `APP_PASSWORD` を設定**してください。
+無料枠の目安: Workers 10 万リクエスト/日、D1 5GB、R2 10GB・書き込み 100 万回/月・読み出し 1000 万回/月。
 
 ## セットアップ
 
-### 1. ローカルで試す
+### 1. デプロイ(初回だけ・10 分程度)
+
+必要なもの: Node.js 20 以上、Cloudflare アカウント(無料)
+
+1. Cloudflare ダッシュボード → **R2** を開き、R2 を有効化する(支払い方法の登録が必要ですが、無料枠内なら請求はありません)
+2. ターミナルで:
 
 ```bash
 npm install
-cp .env.example .env   # 必要に応じて編集
-npm run build
-npm start              # → http://127.0.0.1:8787
+npx wrangler login          # ブラウザで Cloudflare にログイン
+npm run setup:cloudflare    # D1/R2 作成 → デプロイ → パスワード設定 まで自動
 ```
 
-開発時は `npm run dev`(API: 8787 / 画面: http://127.0.0.1:5173、ホットリロード)。
+最後に表示される `https://studio-aegis.<サブドメイン>.workers.dev` を開き、設定したパスワードでログインすれば使えます。スマホならホーム画面に追加しておくと便利です。
 
-### 2. 自宅サーバー + Tailscale で常用する(推奨)
+> 安全のため、**パスワード (`APP_PASSWORD`) が未設定のままだとアプリは停止**し、案件やファイルは一切見えません。変更は `npx wrangler secret put APP_PASSWORD`。
+
+### 2. 更新するとき
 
 ```bash
-cp .env.example .env
-# .env を編集:
-#   PUBLIC_URL=https://<マシン名>.<tailnet>.ts.net
-#   APP_PASSWORD=<長めのパスワード>
-docker compose up -d --build
-sudo tailscale serve --bg 8787
+npm run deploy   # ビルド → DB マイグレーション → デプロイ
 ```
 
-iPhone / iPad / ノート PC に Tailscale アプリを入れて同じアカウントでログインすれば、`PUBLIC_URL` で開けます。
-Docker を使わない場合は `npm run build && npm start` を launchd / systemd 等で常駐させてください。
-
-> **アクセスは常に `PUBLIC_URL` の URL から**行ってください(Spotify 接続の戻り先がこの URL になるため、別ホスト名で開いていると接続に失敗します)。
+GitHub に push するだけで自動デプロイしたい場合は、Cloudflare ダッシュボード → Workers & Pages → studio-aegis → Settings → Builds でこのリポジトリを接続し、
+Build command に `npm run build`、Deploy command に `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy` を指定してください。
 
 ### 3. Spotify を有効にする(任意)
 
 埋め込みプレイヤーは設定なしで動きます。検索・プレイリスト・アプリ内再生を使う場合のみ:
 
 1. https://developer.spotify.com/dashboard でアプリを作成(Web API と Web Playback SDK にチェック)
-2. **Redirect URI** に `<PUBLIC_URL>/api/spotify/callback` を登録
-   - ローカルのみなら `http://127.0.0.1:8787/api/spotify/callback`(Spotify は `localhost` 表記を受け付けないので `127.0.0.1` を使う)
-3. Client ID / Client Secret を `.env` の `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` に設定して再起動
-4. 画面右上の「Spotify に接続」から認証
+2. **Redirect URI** に `https://studio-aegis.<サブドメイン>.workers.dev/api/spotify/callback` を登録
+   - ローカル開発でも使うなら `http://127.0.0.1:8787/api/spotify/callback` も追加(Spotify は `localhost` 表記を受け付けないので `127.0.0.1`)
+3. Client ID / Secret を登録:
+   ```bash
+   npx wrangler secret put SPOTIFY_CLIENT_ID
+   npx wrangler secret put SPOTIFY_CLIENT_SECRET
+   ```
+4. アプリ右上の「Spotify に接続」から認証
 
 注意点(2026 年 2 月以降の Spotify 開発モードのルール):
 - アプリ所有者に **Spotify Premium が必要**、開発モードの利用ユーザーは最大 5 人(個人利用なら問題なし)
 - 検索結果は 1 回最大 10 件
 - アプリ内再生(Web Playback SDK)はデスクトップの Chrome / Edge / Firefox / Safari で動作。iPhone/iPad のブラウザでは SDK が動かないため、埋め込みプレイヤーか「フル再生」(その時 Spotify アプリで再生中のデバイスに送る = Spotify Connect)を使ってください
 
-トークンはサーバー側に保存されるので、一度接続すればどのデバイスからでも使えます。
+トークンはサーバー側(D1)に保存されるので、一度接続すればどのデバイスからでも使えます。
+
+### ローカル開発
+
+```bash
+npm install
+cp .dev.vars.example .dev.vars   # 必要ならパスワードや Spotify のキーを記入
+npm run dev                      # 画面: http://127.0.0.1:5173(API は 8787。D1/R2 はローカルに再現される)
+```
+
+### バックアップ
+
+```bash
+npx wrangler d1 export studio-aegis --remote --output backup.sql   # 案件・メモ
+```
+
+音源ファイルは R2 に保存されます(R2 は複数拠点に冗長保存されるので、ディスク故障でファイルを失う心配はほぼありません)。D1 は過去 30 日の任意の時点に戻せる「タイムトラベル」機能もあります(`npx wrangler d1 time-travel`)。
 
 ## Splice のアプリ内表示について(調査結果)
 
@@ -108,19 +132,17 @@ Docker を使わない場合は `npm run build && npm start` を launchd / syste
 
 Splice が将来 embed を提供した場合は `web/src/components/SpliceSection.tsx` を差し替えるだけで対応できます。
 
-## 環境変数
+## 設定値
 
-| 変数 | 既定値 | 説明 |
+| 名前 | 種類 | 説明 |
 |---|---|---|
-| `PUBLIC_URL` | `http://127.0.0.1:8787` | アクセスに使う URL。Spotify の戻り先に使用 |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | 待ち受け |
-| `APP_PASSWORD` | (空) | 設定するとパスワードログインが必須に |
-| `SESSION_DAYS` | `30` | ログイン保持日数 |
-| `DATA_DIR` | `./data` | DB とアップロードファイルの保存先 |
-| `MAX_UPLOAD_MB` | `1024` | 1 ファイルのアップロード上限 |
-| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | (空) | Spotify 連携 |
-| `SPOTIFY_REDIRECT_URI` | `<PUBLIC_URL>/api/spotify/callback` | 必要な場合のみ上書き |
-| `SESSION_SECRET` | 自動生成 | 未指定時は `data/.session-secret` に生成・保存 |
+| `APP_PASSWORD` | シークレット | ログインパスワード(デプロイ環境では必須) |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | シークレット | Spotify 連携(任意) |
+| `SPOTIFY_REDIRECT_URI` | シークレット | 戻り先 URL の上書き(既定はアクセス中のオリジン + `/api/spotify/callback`) |
+| `SESSION_SECRET` | シークレット | 任意。未指定なら初回に自動生成して D1 に保存 |
+| `MAX_UPLOAD_MB` | `wrangler.jsonc` の vars | 1 ファイルのアップロード上限(既定 5120) |
+
+シークレットは `npx wrangler secret put <名前>`、ローカル開発では `.dev.vars` に書きます。
 
 ## 未確定事項(初期値)
 

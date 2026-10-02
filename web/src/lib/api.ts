@@ -1,4 +1,6 @@
 export interface Session {
+  /** Deployed without APP_PASSWORD: the server refuses to serve data until it is set. */
+  setupRequired: boolean;
   authRequired: boolean;
   authenticated: boolean;
   spotifyConfigured: boolean;
@@ -137,20 +139,12 @@ export const api = {
   spotifyPlay: (uri: string, deviceId?: string) => request("/api/spotify/play", json("POST", { uri, deviceId })),
 };
 
-/** Multipart upload with progress (fetch can't report upload progress). */
-export function uploadFiles(
-  projectId: string,
-  category: FileCategory,
-  files: File[],
-  onProgress: (fraction: number) => void,
-): Promise<StoredFile[]> {
+/** PUT one chunk with XHR (fetch can't report upload progress). */
+function putPart(url: string, blob: Blob, onProgress: (loaded: number) => void): Promise<{ partNumber: number; etag: string }> {
   return new Promise((resolve, reject) => {
-    const fd = new FormData();
-    fd.append("category", category);
-    for (const f of files) fd.append("files", f, f.name);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/projects/${projectId}/files`);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.open("PUT", url);
+    xhr.upload.onprogress = (e) => onProgress(e.loaded);
     xhr.onload = () => {
       let body: any;
       try {
@@ -158,13 +152,86 @@ export function uploadFiles(
       } catch {
         body = undefined;
       }
-      if (xhr.status >= 200 && xhr.status < 300) resolve(body.items);
-      else {
-        if (xhr.status === 401) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
-        reject(new ApiError(xhr.status, body?.error ?? `アップロードに失敗しました (HTTP ${xhr.status})`));
-      }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(body);
+      if (xhr.status === 401) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+      reject(new ApiError(xhr.status, body?.error ?? `アップロードに失敗しました (HTTP ${xhr.status})`));
     };
     xhr.onerror = () => reject(new ApiError(0, "ネットワークエラーでアップロードに失敗しました"));
-    xhr.send(fd);
+    xhr.send(blob);
   });
+}
+
+const PART_CONCURRENCY = 3;
+const PART_RETRIES = 3;
+
+/**
+ * Chunked upload straight into R2 multipart storage (the server never holds a whole file,
+ * so multi-GB WAVs / stem zips work). Each chunk is retried a few times on failure.
+ */
+async function uploadOne(
+  projectId: string,
+  category: FileCategory,
+  file: File,
+  onProgress: (loadedBytes: number) => void,
+): Promise<StoredFile> {
+  const init = await request<{ fileId: string; key: string; uploadId: string; partSize: number }>(
+    `/api/projects/${projectId}/uploads`,
+    json("POST", { name: file.name, size: file.size, type: file.type, category }),
+  );
+  const qs = new URLSearchParams({ key: init.key, uploadId: init.uploadId });
+  const base = `/api/projects/${projectId}/uploads/${init.fileId}`;
+  const count = Math.max(1, Math.ceil(file.size / init.partSize));
+  const loaded = new Array<number>(count).fill(0);
+  const parts: { partNumber: number; etag: string }[] = [];
+  let next = 0;
+
+  async function worker() {
+    while (next < count) {
+      const index = next++;
+      const blob = file.slice(index * init.partSize, Math.min(file.size, (index + 1) * init.partSize));
+      for (let attempt = 1; ; attempt++) {
+        try {
+          parts.push(
+            await putPart(`${base}/parts/${index + 1}?${qs}`, blob, (n) => {
+              loaded[index] = n;
+              onProgress(loaded.reduce((a, b) => a + b, 0));
+            }),
+          );
+          break;
+        } catch (e) {
+          loaded[index] = 0;
+          if (attempt >= PART_RETRIES || (e instanceof ApiError && e.status >= 400 && e.status < 500)) throw e;
+          await new Promise((r) => setTimeout(r, 1000 * attempt));
+        }
+      }
+    }
+  }
+
+  try {
+    await Promise.all(Array.from({ length: Math.min(PART_CONCURRENCY, count) }, worker));
+    return await request<StoredFile>(`${base}/complete?${qs}`, json("POST", { name: file.name, type: file.type, category, parts }));
+  } catch (e) {
+    void request(`${base}?${qs}`, json("DELETE")).catch(() => undefined);
+    throw e;
+  }
+}
+
+/** Upload several files one after another, reporting overall progress as a 0–1 fraction. */
+export async function uploadFiles(
+  projectId: string,
+  category: FileCategory,
+  files: File[],
+  onProgress: (fraction: number) => void,
+  onFileDone?: (file: StoredFile) => void,
+): Promise<StoredFile[]> {
+  const total = files.reduce((a, f) => a + f.size, 0) || 1;
+  let done = 0;
+  const created: StoredFile[] = [];
+  for (const file of files) {
+    const stored = await uploadOne(projectId, category, file, (n) => onProgress(Math.min(1, (done + n) / total)));
+    created.push(stored);
+    onFileDone?.(stored);
+    done += file.size;
+  }
+  return created;
 }
