@@ -2,8 +2,8 @@
 //
 // Everything runs on this Mac: a small local server (127.0.0.1 only) keeps projects in SQLite and
 // files on disk under ~/Library/Application Support/Studio Aegis/data, and serves the UI.
-// The window also shows Splice in a side panel (splice.com refuses iframes, but a separate web
-// view is a normal top-level page).
+// The left pane shows Spotify and Splice as tabs (splice.com refuses iframes, but a separate web
+// view is a normal top-level page); the right side is the Studio Aegis UI.
 const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, dialog, session } = require("electron");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -40,33 +40,86 @@ function openExternal(url) {
 
 const statePath = () => path.join(app.getPath("userData"), "window-state.json");
 
-function readBounds() {
+function readState() {
   try {
     return JSON.parse(fs.readFileSync(statePath(), "utf8"));
   } catch {
-    return undefined;
+    return {};
+  }
+}
+
+function saveState() {
+  if (!win) return;
+  try {
+    fs.writeFileSync(statePath(), JSON.stringify({ bounds: win.getBounds(), pane: { open: pane.open, tab: pane.tab, ratio: pane.ratio } }));
+  } catch {
+    /* not critical */
   }
 }
 
 // ---- Window & views --------------------------------------------------------
+//
+//  ┌──────────── left pane ────────────┬──────────── app ────────────┐
+//  │ tabsView  [Spotify][Splice] ← → ⟳ │                             │
+//  ├───────────────────────────────────┤  appView (Studio Aegis UI)  │
+//  │ spotify / splice web view         │                             │
+//  └───────────────────────────────────┴─────────────────────────────┘
+
+const TABS_H = 44;
+const PANE_MIN = 380;
+const APP_MIN = 520;
+// Sites that refuse "Electron" in the user agent get a plain Chrome one.
+const CHROME_UA = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+
+const TABS = {
+  spotify: { home: "https://open.spotify.com/", host: /(^|\.)spotify\.com$/, partition: "persist:spotify" },
+  splice: { home: "https://splice.com/sounds", host: SPLICE_HOST, partition: "persist:splice" },
+};
 
 let win = null;
 let appView = null;
-let spliceView = null;
-let spliceOpen = false;
-const SPLICE_RATIO = 0.42;
-const SPLICE_MIN = 380;
+let tabsView = null;
+const content = { spotify: null, splice: null };
+const pane = { open: true, tab: "spotify", ratio: 0.42 };
+
+function paneWidth(width) {
+  if (!pane.open) return 0;
+  return Math.max(PANE_MIN, Math.min(width - APP_MIN, Math.round(width * pane.ratio)));
+}
 
 function layout() {
   if (!win || !appView) return;
   const { width, height } = win.getContentBounds();
-  if (spliceOpen && spliceView) {
-    const panel = Math.min(width - 420, Math.max(SPLICE_MIN, Math.round(width * SPLICE_RATIO)));
-    appView.setBounds({ x: 0, y: 0, width: width - panel, height });
-    spliceView.setBounds({ x: width - panel, y: 0, width: panel, height });
-  } else {
-    appView.setBounds({ x: 0, y: 0, width, height });
+  const left = paneWidth(width);
+  appView.setBounds({ x: left, y: 0, width: width - left, height });
+  if (tabsView) tabsView.setBounds({ x: 0, y: 0, width: left, height: pane.open ? TABS_H : 0 });
+  for (const [name, view] of Object.entries(content)) {
+    if (!view) continue;
+    const visible = pane.open && name === pane.tab;
+    view.setBounds(visible ? { x: 0, y: TABS_H, width: left, height: height - TABS_H } : { x: 0, y: 0, width: 0, height: 0 });
+    view.setVisible(visible);
   }
+}
+
+function paneState() {
+  const info = {};
+  for (const [name, view] of Object.entries(content)) {
+    const wc = view?.webContents;
+    info[name] = wc
+      ? { url: wc.getURL(), title: wc.getTitle(), loading: wc.isLoading(), canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward() }
+      : null;
+  }
+  return { open: pane.open, tab: pane.tab, ratio: pane.ratio, ...info };
+}
+
+let broadcastTimer = null;
+function broadcast() {
+  clearTimeout(broadcastTimer);
+  broadcastTimer = setTimeout(() => {
+    const state = paneState();
+    appView?.webContents.send("pane-state", state);
+    tabsView?.webContents.send("pane-state", state);
+  }, 30);
 }
 
 function addContextMenu(contents) {
@@ -81,103 +134,141 @@ function addContextMenu(contents) {
 
 const loadApp = () => void appView?.webContents.loadURL(`${ORIGIN}/`);
 
+/** Route a link from the app: Spotify / Splice pages open in the left pane, the rest in the browser. */
+function routeUrl(url) {
+  const host = hostOf(url);
+  if (TABS.splice.host.test(host)) openInPane("splice", url);
+  else if (host === "open.spotify.com") openInPane("spotify", url);
+  else openExternal(url);
+}
+
 function createAppView() {
-  const view = new WebContentsView({
-    webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true },
-  });
+  const view = new WebContentsView({ webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true } });
   view.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#111214" : "#f6f5f2");
   const contents = view.webContents;
-
-  // Stay inside the app for its own pages and OAuth round-trips; everything else → browser.
+  // Stay inside the app for its own pages and the Spotify login round-trip; everything else → pane / browser.
   // (Also stops a file dropped outside a drop zone from replacing the page.)
   contents.on("will-navigate", (e, url) => {
     if (url.startsWith(`${ORIGIN}/`) || AUTH_HOSTS.test(hostOf(url))) return;
     e.preventDefault();
-    openExternal(url);
+    routeUrl(url);
   });
-
   contents.setWindowOpenHandler(({ url }) => {
-    if (SPLICE_HOST.test(hostOf(url))) openSplice(url);
-    else openExternal(url);
+    routeUrl(url);
     return { action: "deny" };
   });
-
   addContextMenu(contents);
   return view;
 }
 
-function ensureSpliceView() {
-  if (spliceView) return spliceView;
-  spliceView = new WebContentsView({
-    // Own persistent session so the Splice login is remembered across launches.
-    webPreferences: { partition: "persist:splice", contextIsolation: true, sandbox: true },
-  });
-  const contents = spliceView.webContents;
+function createTabsView() {
+  const view = new WebContentsView({ webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true } });
+  view.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#111214" : "#f6f5f2");
+  view.webContents.on("will-navigate", (e) => e.preventDefault());
+  view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  void view.webContents.loadURL(`${ORIGIN}/pane`);
+  return view;
+}
+
+function ensureContent(name) {
+  if (content[name]) return content[name];
+  const tab = TABS[name];
+  session.fromPartition(tab.partition).setUserAgent(CHROME_UA);
+  // Own persistent session per site so logins are remembered across launches.
+  const view = new WebContentsView({ webPreferences: { partition: tab.partition, contextIsolation: true, sandbox: true } });
+  const contents = view.webContents;
   contents.on("will-navigate", (e, url) => {
-    if (!AUTH_HOSTS.test(hostOf(url))) {
-      e.preventDefault();
-      openExternal(url);
-    }
-  });
-  // Allow login popups (Google / Apple sign-in) as real windows; other popups → browser.
-  contents.setWindowOpenHandler(({ url }) => {
-    if (AUTH_HOSTS.test(hostOf(url))) return { action: "allow" };
+    const host = hostOf(url);
+    if (tab.host.test(host) || AUTH_HOSTS.test(host)) return;
+    e.preventDefault();
     openExternal(url);
+  });
+  // Login popups (Google / Apple / Facebook) open as real windows; same-site links stay in the pane.
+  contents.setWindowOpenHandler(({ url }) => {
+    const host = hostOf(url);
+    if (AUTH_HOSTS.test(host) && !tab.host.test(host)) return { action: "allow" };
+    if (tab.host.test(host)) void contents.loadURL(url);
+    else openExternal(url);
     return { action: "deny" };
   });
-  addContextMenu(contents);
-  return spliceView;
-}
-
-function notifySplice() {
-  appView?.webContents.send("splice-panel", spliceOpen);
-  buildMenu();
-}
-
-function openSplice(url) {
-  if (!win) return;
-  const view = ensureSpliceView();
-  if (!spliceOpen) {
-    win.contentView.addChildView(view);
-    spliceOpen = true;
+  for (const ev of ["did-navigate", "did-navigate-in-page", "page-title-updated", "did-start-loading", "did-stop-loading"]) {
+    contents.on(ev, broadcast);
   }
-  const current = view.webContents.getURL();
-  if (url && url !== current) void view.webContents.loadURL(url);
-  else if (!current) void view.webContents.loadURL("https://splice.com/");
-  layout();
-  notifySplice();
+  addContextMenu(contents);
+  win.contentView.addChildView(view);
+  content[name] = view;
+  void contents.loadURL(tab.home);
+  return view;
 }
 
-function closeSplice() {
-  if (!win || !spliceView || !spliceOpen) return;
-  win.contentView.removeChildView(spliceView);
-  spliceOpen = false;
+function setTab(name, open = true) {
+  if (!TABS[name]) return;
+  pane.tab = name;
+  pane.open = open || pane.open;
+  if (pane.open) ensureContent(name);
   layout();
-  notifySplice();
+  broadcast();
+  buildMenu();
+  saveState();
+}
+
+function togglePane(open = !pane.open) {
+  pane.open = open;
+  if (pane.open) ensureContent(pane.tab);
+  layout();
+  broadcast();
+  buildMenu();
+  saveState();
+}
+
+function openInPane(name, url) {
+  const tab = TABS[name];
+  if (!tab) return;
+  if (url && !tab.host.test(hostOf(url))) return openExternal(url);
+  setTab(name, true);
+  const view = content[name];
+  if (url && view && view.webContents.getURL() !== url) void view.webContents.loadURL(url);
+}
+
+function paneNav(action) {
+  const wc = content[pane.tab]?.webContents;
+  if (!wc) return;
+  if (action === "back") wc.navigationHistory.goBack();
+  else if (action === "forward") wc.navigationHistory.goForward();
+  else if (action === "reload") wc.reload();
+  else if (action === "home") void wc.loadURL(TABS[pane.tab].home);
+  else if (action === "external") openExternal(wc.getURL());
 }
 
 function createWindow() {
-  const bounds = readBounds();
+  const saved = readState();
+  Object.assign(pane, saved.pane ?? {});
+  if (!TABS[pane.tab]) pane.tab = "spotify";
+  const bounds = saved.bounds;
   win = new BaseWindow({
-    width: bounds?.width ?? 1360,
+    width: bounds?.width ?? 1440,
     height: bounds?.height ?? 900,
     x: bounds?.x,
     y: bounds?.y,
-    minWidth: 900,
+    minWidth: 960,
     minHeight: 600,
     title: "Studio Aegis",
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#111214" : "#f6f5f2",
   });
   appView = createAppView();
+  tabsView = createTabsView();
   win.contentView.addChildView(appView);
+  win.contentView.addChildView(tabsView);
+  if (pane.open) ensureContent(pane.tab);
   layout();
   win.on("resize", layout);
-  win.on("close", () => fs.writeFileSync(statePath(), JSON.stringify(win.getBounds())));
+  win.on("close", saveState);
   win.on("closed", () => {
     win = null;
     appView = null;
-    spliceView = null;
-    spliceOpen = false;
+    tabsView = null;
+    content.spotify = null;
+    content.splice = null;
   });
   loadApp();
 }
@@ -236,13 +327,22 @@ async function checkForUpdateFromMenu() {
 
 // ---- IPC from the web UI ---------------------------------------------------
 
-ipcMain.handle("splice:open", (_e, url) => {
-  if (typeof url !== "string") return;
-  if (SPLICE_HOST.test(hostOf(url))) openSplice(url);
-  else openExternal(url);
+ipcMain.handle("pane:get", () => paneState());
+ipcMain.handle("pane:setTab", (_e, name) => setTab(String(name)));
+ipcMain.handle("pane:toggle", (_e, open) => togglePane(typeof open === "boolean" ? open : undefined));
+ipcMain.handle("pane:open", (_e, name, url) => openInPane(String(name), typeof url === "string" ? url : undefined));
+ipcMain.handle("pane:nav", (_e, action) => paneNav(String(action)));
+// Divider drag from the app view: the pointer's screen X sets the pane width.
+ipcMain.on("pane:drag", (_e, screenX) => {
+  if (!win || !pane.open || typeof screenX !== "number") return;
+  const { x, width } = win.getContentBounds();
+  pane.ratio = Math.max(0.2, Math.min(0.75, (screenX - x) / width));
+  layout();
 });
-ipcMain.handle("splice:close", () => closeSplice());
-ipcMain.handle("splice:state", () => spliceOpen);
+ipcMain.on("pane:dragEnd", () => {
+  broadcast();
+  saveState();
+});
 ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataDir: dataDir() }));
 ipcMain.handle("app:openDataFolder", () => shell.openPath(dataDir()));
 ipcMain.handle("app:exportBackup", () => exportBackup());
@@ -252,7 +352,8 @@ ipcMain.handle("app:openExternal", (_e, url) => openExternal(String(url)));
 // ---- Menu ------------------------------------------------------------------
 
 function focusedContents() {
-  if (spliceOpen && spliceView?.webContents.isFocused()) return spliceView.webContents;
+  const active = pane.open ? content[pane.tab] : null;
+  if (active?.webContents.isFocused()) return active.webContents;
   return appView?.webContents;
 }
 
@@ -313,14 +414,14 @@ function buildMenu() {
       ],
     },
     {
-      label: "Splice",
+      label: "左パネル",
       submenu: [
-        {
-          label: spliceOpen ? "Splice パネルを閉じる" : "Splice パネルを開く",
-          accelerator: "CmdOrCtrl+Shift+S",
-          click: () => (spliceOpen ? closeSplice() : openSplice()),
-        },
-        { label: "Splice をブラウザで開く", click: () => openExternal(spliceView?.webContents.getURL() || "https://splice.com/") },
+        { label: pane.open ? "左パネルを隠す" : "左パネルを表示", accelerator: "CmdOrCtrl+Shift+L", click: () => togglePane() },
+        { type: "separator" },
+        { label: "Spotify", type: "radio", checked: pane.tab === "spotify", accelerator: "CmdOrCtrl+1", click: () => setTab("spotify") },
+        { label: "Splice", type: "radio", checked: pane.tab === "splice", accelerator: "CmdOrCtrl+2", click: () => setTab("splice") },
+        { type: "separator" },
+        { label: "左パネルのページをブラウザで開く", click: () => paneNav("external") },
       ],
     },
     { role: "windowMenu", label: "ウィンドウ" },

@@ -11,6 +11,7 @@
   "dependencies": {
     "@fontsource/anton": "^5.3.0",
     "@fontsource/audiowide": "^5.3.0",
+    "@fontsource/chakra-petch": "^5.3.0",
     "@fontsource/dotgothic16": "^5.3.0",
     "@fontsource/hachi-maru-pop": "^5.3.0",
     "@fontsource/m-plus-rounded-1c": "^5.3.0",

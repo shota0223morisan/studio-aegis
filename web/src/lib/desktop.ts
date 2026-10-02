@@ -6,13 +6,35 @@ export interface UpdateInfo {
   url?: string;
 }
 
+export type PaneTab = "spotify" | "splice";
+
+export interface PanePage {
+  url: string;
+  title: string;
+  loading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+}
+
+export interface PaneState {
+  open: boolean;
+  tab: PaneTab;
+  ratio: number;
+  spotify: PanePage | null;
+  splice: PanePage | null;
+}
+
 export interface AegisDesktop {
   isDesktop: true;
   platform: string;
-  openSplice: (url: string) => Promise<void>;
-  closeSplice: () => Promise<void>;
-  isSpliceOpen: () => Promise<boolean>;
-  onSplicePanel: (cb: (open: boolean) => void) => () => void;
+  getPaneState: () => Promise<PaneState>;
+  setPaneTab: (tab: PaneTab) => Promise<void>;
+  togglePane: (open?: boolean) => Promise<void>;
+  openInPane: (tab: PaneTab, url?: string) => Promise<void>;
+  paneNav: (action: "back" | "forward" | "reload" | "home" | "external") => Promise<void>;
+  paneDrag: (screenX: number) => void;
+  paneDragEnd: () => void;
+  onPaneState: (cb: (state: PaneState) => void) => () => void;
   getInfo: () => Promise<{ version: string; dataDir: string }>;
   openDataFolder: () => Promise<void>;
   exportBackup: () => Promise<{ ok: boolean; path?: string }>;

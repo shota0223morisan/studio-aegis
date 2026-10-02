@@ -58,6 +58,8 @@ function openDatabase(dataDir) {
     );
   `);
 
+  migrate(db);
+
   return {
     db,
     filesDir: path.join(dataDir, "files"),
@@ -75,6 +77,39 @@ function openDatabase(dataDir) {
       db.prepare("DELETE FROM kv WHERE key = ?").run(key);
     },
   };
+}
+
+/** Schema changes after the first release, applied in order and tracked with PRAGMA user_version. */
+const MIGRATIONS = [
+  // v1: clients (取引先) → songs, and the client's brief per song
+  `
+    CREATE TABLE IF NOT EXISTS clients (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      note        TEXT NOT NULL DEFAULT '',
+      position    INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
+    ALTER TABLE projects ADD COLUMN client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;
+    ALTER TABLE projects ADD COLUMN brief TEXT NOT NULL DEFAULT '';
+    CREATE INDEX IF NOT EXISTS projects_client ON projects(client_id, updated_at);
+  `,
+];
+
+function migrate(db) {
+  const { user_version: version } = db.prepare("PRAGMA user_version").get();
+  for (let v = version; v < MIGRATIONS.length; v++) {
+    db.exec("BEGIN");
+    try {
+      db.exec(MIGRATIONS[v]);
+      db.exec(`PRAGMA user_version = ${v + 1}`);
+      db.exec("COMMIT");
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  }
 }
 
 const newId = () => crypto.randomUUID();

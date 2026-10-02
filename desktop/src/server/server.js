@@ -88,6 +88,8 @@ function createServer({ store, webDir, port, sessionToken }) {
     id: p.id,
     name: p.name,
     thumbnailUrl: p.thumbnail ? `/api/projects/${p.id}/thumbnail?v=${encodeURIComponent(p.thumbnail)}` : null,
+    clientId: p.client_id ?? null,
+    brief: p.brief ?? "",
     structureMemo: p.structure_memo,
     ideaMemo: p.idea_memo,
     spliceUrl: p.splice_url,
@@ -121,7 +123,7 @@ function createServer({ store, webDir, port, sessionToken }) {
 
   function loadProject(req, res, next) {
     const project = getProject(req.params.id);
-    if (!project) return res.status(404).json({ error: "案件が見つかりません" });
+    if (!project) return res.status(404).json({ error: "曲が見つかりません" });
     res.locals.project = project;
     next();
   }
@@ -152,7 +154,65 @@ function createServer({ store, webDir, port, sessionToken }) {
 
   app.use("/api/spotify", createSpotifyRouter(store, { redirectUri: `${origin}/api/spotify/callback` }));
 
-  // ---- projects ----
+  // ---- clients (取引先) ----
+  const getClient = (id) => db.prepare("SELECT * FROM clients WHERE id = ?").get(id);
+  const serializeClient = (c) => ({
+    id: c.id,
+    name: c.name,
+    note: c.note,
+    position: c.position,
+    songCount: c.song_count ?? 0,
+    createdAt: c.created_at,
+    updatedAt: c.updated_at,
+  });
+
+  app.get("/api/clients", (_req, res) => {
+    const rows = db
+      .prepare(
+        `SELECT c.*, (SELECT COUNT(*) FROM projects p WHERE p.client_id = c.id) AS song_count
+         FROM clients c ORDER BY c.position, c.created_at`,
+      )
+      .all();
+    res.json({ items: rows.map(serializeClient) });
+  });
+
+  app.post("/api/clients", (req, res) => {
+    const name = str(req.body?.name, 200)?.trim();
+    if (!name) return res.status(400).json({ error: "取引先名を入力してください" });
+    const id = newId();
+    const ts = now();
+    const { pos } = db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS pos FROM clients").get();
+    db.prepare("INSERT INTO clients (id, name, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run(id, name, pos, ts, ts);
+    res.status(201).json(serializeClient(getClient(id)));
+  });
+
+  app.patch("/api/clients/:id", (req, res) => {
+    const c = getClient(req.params.id);
+    if (!c) return res.status(404).json({ error: "取引先が見つかりません" });
+    const name = str(req.body?.name, 200)?.trim();
+    if (name !== undefined && !name) return res.status(400).json({ error: "取引先名を入力してください" });
+    const note = str(req.body?.note, 100_000);
+    db.prepare("UPDATE clients SET name = ?, note = ?, updated_at = ? WHERE id = ?").run(name ?? c.name, note ?? c.note, now(), c.id);
+    res.json(serializeClient(getClient(c.id)));
+  });
+
+  /** Body: { order: clientId[] } */
+  app.put("/api/clients/order", (req, res) => {
+    const order = req.body?.order;
+    if (!Array.isArray(order)) return res.status(400).json({ error: "order が必要です" });
+    const stmt = db.prepare("UPDATE clients SET position = ? WHERE id = ?");
+    order.forEach((id, i) => stmt.run(i, String(id)));
+    res.json({ ok: true });
+  });
+
+  /** Songs of a deleted client stay, under "取引先なし". */
+  app.delete("/api/clients/:id", (req, res) => {
+    db.prepare("UPDATE projects SET client_id = NULL WHERE client_id = ?").run(req.params.id);
+    db.prepare("DELETE FROM clients WHERE id = ?").run(req.params.id);
+    res.json({ ok: true });
+  });
+
+  // ---- projects (songs) ----
   const SORTS = {
     updated: "updated_at DESC",
     // Prepared for later; the UI only exposes "updated" for now.
@@ -160,17 +220,33 @@ function createServer({ store, webDir, port, sessionToken }) {
     pinned: "pinned DESC, updated_at DESC",
   };
 
+  /** ?client=<id> for one client's songs, ?client=none for songs without a client. */
   app.get("/api/projects", (req, res) => {
     const order = SORTS[String(req.query.sort)] ?? SORTS.updated;
-    res.json({ items: db.prepare(`SELECT * FROM projects ORDER BY ${order}`).all().map(serializeProject) });
+    const client = req.query.client;
+    const rows =
+      client === "none"
+        ? db.prepare(`SELECT * FROM projects WHERE client_id IS NULL ORDER BY ${order}`).all()
+        : typeof client === "string" && client
+          ? db.prepare(`SELECT * FROM projects WHERE client_id = ? ORDER BY ${order}`).all(client)
+          : db.prepare(`SELECT * FROM projects ORDER BY ${order}`).all();
+    res.json({ items: rows.map(serializeProject) });
   });
+
+  const validClientId = (v) => (typeof v === "string" && v && getClient(v) ? v : null);
 
   app.post("/api/projects", (req, res) => {
     const name = str(req.body?.name, 200)?.trim();
-    if (!name) return res.status(400).json({ error: "案件名を入力してください" });
+    if (!name) return res.status(400).json({ error: "曲名を入力してください" });
     const id = newId();
     const ts = now();
-    db.prepare("INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)").run(id, name, ts, ts);
+    db.prepare("INSERT INTO projects (id, name, client_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run(
+      id,
+      name,
+      validClientId(req.body?.clientId),
+      ts,
+      ts,
+    );
     res.status(201).json(serializeProject(getProject(id)));
   });
 
@@ -187,10 +263,12 @@ function createServer({ store, webDir, port, sessionToken }) {
     const updates = {};
     const name = str(b.name, 200)?.trim();
     if (name !== undefined) {
-      if (!name) return res.status(400).json({ error: "案件名を入力してください" });
+      if (!name) return res.status(400).json({ error: "曲名を入力してください" });
       updates.name = name;
     }
     if (str(b.structureMemo) !== undefined) updates.structure_memo = str(b.structureMemo);
+    if (str(b.brief) !== undefined) updates.brief = str(b.brief);
+    if (b.clientId === null || typeof b.clientId === "string") updates.client_id = validClientId(b.clientId);
     if (str(b.ideaMemo) !== undefined) updates.idea_memo = str(b.ideaMemo);
     if (str(b.spliceLabel, 200) !== undefined) updates.splice_label = str(b.spliceLabel, 200);
     if (str(b.spliceUrl, 2000) !== undefined) {

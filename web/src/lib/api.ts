@@ -3,9 +3,22 @@ export interface Session {
   maxUploadBytes: number;
 }
 
+export interface Client {
+  id: string;
+  name: string;
+  note: string;
+  position: number;
+  songCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A song (曲): one piece of work, optionally under a client. */
 export interface Project {
   id: string;
   name: string;
+  clientId: string | null;
+  brief: string;
   thumbnailUrl: string | null;
   structureMemo: string;
   ideaMemo: string;
@@ -96,8 +109,14 @@ const json = (method: string, data?: unknown): RequestInit => ({ method, body: d
 export const api = {
   session: () => request<Session>("/api/session"),
 
+  listClients: () => request<{ items: Client[] }>("/api/clients"),
+  createClient: (name: string) => request<Client>("/api/clients", json("POST", { name })),
+  updateClient: (id: string, patch: Partial<Pick<Client, "name" | "note">>) => request<Client>(`/api/clients/${id}`, json("PATCH", patch)),
+  reorderClients: (order: string[]) => request("/api/clients/order", json("PUT", { order })),
+  deleteClient: (id: string) => request(`/api/clients/${id}`, json("DELETE")),
+
   listProjects: (sort = "updated") => request<{ items: Project[] }>(`/api/projects?sort=${sort}`),
-  createProject: (name: string) => request<Project>("/api/projects", json("POST", { name })),
+  createProject: (name: string, clientId: string | null) => request<Project>("/api/projects", json("POST", { name, clientId })),
   getProject: (id: string) => request<ProjectDetail>(`/api/projects/${id}`),
   updateProject: (id: string, patch: Partial<Project>) => request<Project>(`/api/projects/${id}`, json("PATCH", patch)),
   deleteProject: (id: string) => request(`/api/projects/${id}`, json("DELETE")),

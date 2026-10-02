@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from "react";
 
-export type ThemeId = "studio" | "rock" | "metal" | "electro" | "cyberpunk" | "jpop";
+export type ThemeId = "studio" | "mecha" | "rock" | "metal" | "electro" | "cyberpunk" | "jpop";
 
 export const THEMES: { id: ThemeId; name: string; desc: string; swatch: string[] }[] = [
   { id: "studio", name: "STUDIO", desc: "シンプル。Mac のライト/ダークに合わせる", swatch: ["#f6f5f2", "#1a1a1a", "#3b6fd8"] },
+  { id: "mecha", name: "MECHA", desc: "Lyric Machine とおそろいの HUD。シアン×マゼンタ", swatch: ["#06080c", "#1fe0ff", "#ff2e93"] },
   { id: "rock", name: "ROCK", desc: "ライブポスター。赤×黒×ハーフトーン", swatch: ["#120f0e", "#e5261c", "#f6c445"] },
   { id: "metal", name: "METAL", desc: "クローム×漆黒×ブラッドレッド", swatch: ["#08080a", "#c9ced6", "#c2272d"] },
   { id: "electro", name: "ELECTRO", desc: "クラブの照明。ネオン×グラデーション", swatch: ["#06051a", "#00e5ff", "#ff2bd6"] },
@@ -37,6 +38,15 @@ export function setTheme(id: ThemeId) {
   }
   document.documentElement.dataset.theme = id;
   window.dispatchEvent(new Event(EVENT));
+}
+
+// Keep other windows of the app (e.g. the left pane's tab bar) in sync.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key !== KEY) return;
+    document.documentElement.dataset.theme = read();
+    window.dispatchEvent(new Event(EVENT));
+  });
 }
 
 function subscribe(cb: () => void) {

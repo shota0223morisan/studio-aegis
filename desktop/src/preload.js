@@ -10,11 +10,15 @@ function subscribe(channel, cb) {
 contextBridge.exposeInMainWorld("aegisDesktop", {
   isDesktop: true,
   platform: process.platform,
-  openSplice: (url) => ipcRenderer.invoke("splice:open", url),
-  closeSplice: () => ipcRenderer.invoke("splice:close"),
-  isSpliceOpen: () => ipcRenderer.invoke("splice:state"),
-  /** Subscribe to the Splice side panel opening/closing. Returns an unsubscribe function. */
-  onSplicePanel: (cb) => subscribe("splice-panel", (open) => cb(Boolean(open))),
+  /** Left pane (Spotify / Splice web views). */
+  getPaneState: () => ipcRenderer.invoke("pane:get"),
+  setPaneTab: (tab) => ipcRenderer.invoke("pane:setTab", tab),
+  togglePane: (open) => ipcRenderer.invoke("pane:toggle", open),
+  openInPane: (tab, url) => ipcRenderer.invoke("pane:open", tab, url),
+  paneNav: (action) => ipcRenderer.invoke("pane:nav", action),
+  paneDrag: (screenX) => ipcRenderer.send("pane:drag", screenX),
+  paneDragEnd: () => ipcRenderer.send("pane:dragEnd"),
+  onPaneState: (cb) => subscribe("pane-state", cb),
   getInfo: () => ipcRenderer.invoke("app:info"),
   openDataFolder: () => ipcRenderer.invoke("app:openDataFolder"),
   exportBackup: () => ipcRenderer.invoke("app:exportBackup"),

@@ -61,7 +61,7 @@ export function IdeaMemo({ projectId, initial }: { projectId: string; initial: s
   return (
     <>
       <div className="section-head">
-        <h2>雑多アイデア</h2>
+        <h2>アイデア</h2>
         <span className="save-state">{saveLabel(autosave.state)}</span>
       </div>
       <textarea

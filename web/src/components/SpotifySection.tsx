@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api, type SpotifyItem, type SpotifyKind, type SpotifyRef } from "../lib/api";
 import { useSpotify } from "../lib/SpotifyContext";
 import { Link } from "react-router-dom";
+import { desktop } from "../lib/desktop";
 
 const KIND_LABEL: Record<SpotifyKind, string> = {
   track: "曲",
@@ -13,6 +14,7 @@ const KIND_LABEL: Record<SpotifyKind, string> = {
 };
 
 const embedHeight = (kind: SpotifyKind) => (kind === "track" || kind === "episode" ? 152 : 352);
+const pageUrl = (ref: SpotifyRef) => `https://open.spotify.com/${ref.kind}/${ref.spotifyId}`;
 
 /** リファレンス: Spotify embeds (always) + search / playlists / in-app playback (when connected). */
 export function SpotifySection({
@@ -29,6 +31,8 @@ export function SpotifySection({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [browser, setBrowser] = useState(false);
+  const [openEmbeds, setOpenEmbeds] = useState<Record<string, boolean>>({});
+  const toggleEmbed = (id: string) => setOpenEmbeds((m) => ({ ...m, [id]: !m[id] }));
 
   async function add(value: string, meta?: { title?: string; subtitle?: string }) {
     setBusy(true);
@@ -109,50 +113,51 @@ export function SpotifySection({
         <ul className="ref-list">
           {refs.map((ref, i) => (
             <li key={ref.id} className="ref-item">
-              <iframe
-                title={ref.title || ref.uri}
-                src={`https://open.spotify.com/embed/${ref.kind}/${ref.spotifyId}?utm_source=generator`}
-                height={embedHeight(ref.kind)}
-                loading="lazy"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-              />
-              <div className="ref-side">
-                <div className="ref-title">
-                  <span className="tag">{KIND_LABEL[ref.kind]}</span> {ref.title || ref.uri}
+              <div className="ref-row">
+                <span className="tag">{KIND_LABEL[ref.kind]}</span>
+                <div className="ref-title" title={ref.title || ref.uri}>
+                  {ref.title || ref.uri}
+                  {ref.subtitle && <span className="muted small"> — {ref.subtitle}</span>}
                 </div>
-                {ref.subtitle && <div className="muted small">{ref.subtitle}</div>}
-                <RefNote projectId={projectId} refItem={ref} />
-                <div className="ref-actions">
-                  {connected && (
-                    <button className="btn small" onClick={() => void spotify.play(ref.uri)} title="Spotify アプリ(Spotify Connect)で再生">
-                      ▶ Spotify アプリで再生
-                    </button>
-                  )}
-                  <a
-                    className="btn small ghost"
-                    href={`https://open.spotify.com/${ref.kind}/${ref.spotifyId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                <button className="icon-btn" disabled={i === 0} onClick={() => void move(i, -1)} aria-label="上へ">
+                  ↑
+                </button>
+                <button className="icon-btn" disabled={i === refs.length - 1} onClick={() => void move(i, 1)} aria-label="下へ">
+                  ↓
+                </button>
+                <button className="icon-btn danger" onClick={() => void remove(ref)} aria-label="削除">
+                  ✕
+                </button>
+              </div>
+              <RefNote projectId={projectId} refItem={ref} />
+              <div className="ref-actions">
+                {desktop ? (
+                  <button className="btn small" onClick={() => void desktop!.openInPane("spotify", pageUrl(ref))} title="左パネルの Spotify で開く">
+                    ◧ 左で開く
+                  </button>
+                ) : (
+                  <a className="btn small" href={pageUrl(ref)} target="_blank" rel="noreferrer">
                     Spotify で開く
                   </a>
-                  <span className="spacer" />
-                  <button className="icon-btn" disabled={i === 0} onClick={() => void move(i, -1)} aria-label="上へ">
-                    ↑
+                )}
+                {connected && (
+                  <button className="btn small" onClick={() => void spotify.play(ref.uri)} title="Spotify アプリ(Spotify Connect)で再生">
+                    ▶ Spotify アプリで再生
                   </button>
-                  <button
-                    className="icon-btn"
-                    disabled={i === refs.length - 1}
-                    onClick={() => void move(i, 1)}
-                    aria-label="下へ"
-                  >
-                    ↓
-                  </button>
-                  <button className="icon-btn danger" onClick={() => void remove(ref)} aria-label="削除">
-                    ✕
-                  </button>
-                </div>
+                )}
+                <button className="btn small ghost" onClick={() => toggleEmbed(ref.id)}>
+                  {openEmbeds[ref.id] ? "▴ プレビューを閉じる" : "▾ プレビュー"}
+                </button>
               </div>
+              {openEmbeds[ref.id] && (
+                <iframe
+                  title={ref.title || ref.uri}
+                  src={`https://open.spotify.com/embed/${ref.kind}/${ref.spotifyId}?utm_source=generator`}
+                  height={embedHeight(ref.kind)}
+                  loading="lazy"
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                />
+              )}
             </li>
           ))}
         </ul>
