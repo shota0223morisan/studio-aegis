@@ -8,6 +8,7 @@ import { ProjectPage } from "./pages/ProjectPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PlayerBar } from "./components/PlayerBar";
 import { SpotifyAccount } from "./components/SpotifyAccount";
+import { ThemePicker } from "./components/ThemePicker";
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -30,10 +31,17 @@ export function App() {
       <div className="app">
         <header className="topbar">
           <Link to="/" className="brand">
-            Studio Aegis
+            <span className="eq" aria-hidden>
+              <i />
+              <i />
+              <i />
+              <i />
+            </span>
+            <span className="brand-text">Studio Aegis</span>
           </Link>
           <div className="topbar-right">
             <SpotifyAccount />
+            <ThemePicker />
             <NavLink to="/settings" className="btn ghost small">
               設定
             </NavLink>

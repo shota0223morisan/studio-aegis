@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../lib/api";
 import { desktop, type UpdateInfo } from "../lib/desktop";
 import { useSpotify } from "../lib/SpotifyContext";
+import { ThemeGallery } from "../components/ThemePicker";
 
 export function SettingsPage() {
   const spotify = useSpotify();
@@ -36,6 +37,14 @@ export function SettingsPage() {
   return (
     <div className="settings-page">
       <h1>設定</h1>
+
+      <section className="card">
+        <div className="section-head">
+          <h2>デザインテーマ</h2>
+          <span className="muted small">右上の 🎨 からもすぐ切り替えられます</span>
+        </div>
+        <ThemeGallery />
+      </section>
 
       <section className="card">
         <div className="section-head">
