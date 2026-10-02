@@ -23,7 +23,7 @@
       "binding": "DB",
       "database_name": "studio-aegis",
       // Filled in by `npm run setup:cloudflare` (or paste the id from `wrangler d1 create studio-aegis`).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "f99d3b75-9a55-4673-ae10-62ddf4290962",
       "migrations_dir": "worker/migrations"
     }
   ],
