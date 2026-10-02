@@ -92,7 +92,7 @@ npm run setup:cloudflare    # D1/R2 作成 → デプロイ → パスワード�
 npm run deploy   # ビルド → DB マイグレーション → デプロイ
 ```
 
-**自動デプロイ(推奨)**: Cloudflare ダッシュボード → Workers & Pages → studio-aegis → Settings → Build でこのリポジトリを接続しておくと、GitHub に push されるたびに自動でビルド・デプロイされます(手元にフォルダは不要)。
+**自動デプロイ(設定済み)**: Cloudflare ダッシュボード → Workers & Pages → studio-aegis → Settings → Build でこのリポジトリを接続しておくと、GitHub に push されるたびに自動でビルド・デプロイされます(手元にフォルダは不要)。
 
 | 項目 | 値 |
 |---|---|
