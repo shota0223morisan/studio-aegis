@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, type SpotifyItem, type SpotifyKind, type SpotifyRef } from "../lib/api";
 import { useSpotify } from "../lib/SpotifyContext";
-import { desktop } from "../lib/desktop";
+import { Link } from "react-router-dom";
 
 const KIND_LABEL: Record<SpotifyKind, string> = {
   track: "曲",
@@ -92,16 +92,14 @@ export function SpotifySection({
 
       {!spotify.status?.configured && (
         <p className="hint">
-          埋め込みプレイヤーで再生できます。検索・プレイリスト取得・アプリ内プレイヤーを使うには、シークレット
-          <code>SPOTIFY_CLIENT_ID</code> / <code>SPOTIFY_CLIENT_SECRET</code> を設定してください(README 参照)。
+          埋め込みプレイヤーで再生できます。検索・プレイリスト取得・Spotify アプリでのフル再生を使うには、
+          <Link to="/settings">設定</Link>で Spotify の Client ID を入力してください。
         </p>
       )}
       {spotify.status?.configured && !connected && (
-        <p className="hint">右上の「Spotify に接続」で検索・プレイリスト・アプリ内再生(Premium)が使えるようになります。</p>
+        <p className="hint">右上の「Spotify に接続」で検索・プレイリスト・Spotify アプリでのフル再生が使えるようになります。</p>
       )}
-      {connected && desktop && (
-        <p className="hint">デスクトップ版のフル再生は Spotify アプリで鳴ります(Spotify アプリを起動しておいてください)。</p>
-      )}
+      {connected && <p className="hint">フル再生は Spotify アプリで鳴ります(Spotify アプリを起動しておいてください)。</p>}
 
       {browser && connected && <SpotifyBrowser existing={refs} onAdd={(item) => add(item.uri, item)} />}
 
@@ -126,12 +124,8 @@ export function SpotifySection({
                 <RefNote projectId={projectId} refItem={ref} />
                 <div className="ref-actions">
                   {connected && (
-                    <button
-                      className={`btn small ${spotify.nowPlaying?.uri === ref.uri ? "primary" : ""}`}
-                      onClick={() => void spotify.play(ref.uri)}
-                      title={spotify.deviceId ? "アプリ内プレイヤーでフル再生" : "Spotify アプリ(Spotify Connect)で再生"}
-                    >
-                      {desktop ? "▶ Spotify アプリで再生" : "▶ フル再生"}
+                    <button className="btn small" onClick={() => void spotify.play(ref.uri)} title="Spotify アプリ(Spotify Connect)で再生">
+                      ▶ Spotify アプリで再生
                     </button>
                   )}
                   <a
@@ -259,7 +253,7 @@ function SpotifyBrowser({ existing, onAdd }: { existing: SpotifyRef[]; onAdd: (i
                 <div className="sr-title">{it.title}</div>
                 <div className="muted small">{it.subtitle}</div>
               </div>
-              <button className="icon-btn" title="アプリ内で試聴" onClick={() => void spotify.play(it.uri)}>
+              <button className="icon-btn" title="Spotify アプリで再生" onClick={() => void spotify.play(it.uri)}>
                 ▶
               </button>
               {tab === "mine" && !openPlaylist && it.kind === "playlist" && (

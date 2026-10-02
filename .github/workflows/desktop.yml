@@ -1,11 +1,12 @@
 name: Desktop app (macOS)
 
-# Builds the Studio Aegis .dmg on a macOS runner and publishes it as a GitHub Release
+# Builds the Studio Aegis Mac app (web UI bundled in) on a macOS runner and publishes the .dmg
+# as a GitHub Release
 # (tag desktop-v<version from desktop/package.json>).
 on:
   push:
     branches: [main, claude/modest-mccarthy-l26qtf]
-    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+    paths: ["desktop/**", "web/**", "package-lock.json", ".github/workflows/desktop.yml"]
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Build web UI
+        working-directory: .
+        run: npm ci && npm run build
 
       - run: npm ci
 
@@ -81,8 +88,10 @@ jobs:
             - **Intel Mac** → `Studio-Aegis-intel.dmg`
             (どちらか分からないときは  メニュー →「この Mac について」の「チップ」を確認)
 
-            ## インストール
-            1. dmg を開き、Studio Aegis を「アプリケーション」へドラッグ
+            ## インストール / 更新
+            1. dmg を開き、Studio Aegis を「アプリケーション」へドラッグ(更新のときは「置き換える」)
             2. 初回だけ: アプリを開こうとすると「開けません」と出るので、
                **システム設定 → プライバシーとセキュリティ** の下の方にある「このまま開く」をクリック
-               (Apple の有料開発者署名をしていない個人用アプリのため。2 回目以降は普通に開けます)
+               (Apple の有料開発者署名をしていない個人用アプリのため)
+
+            データ(案件・メモ・音源)は Mac 内に保存されていて、更新しても消えません。

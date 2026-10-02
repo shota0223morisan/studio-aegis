@@ -1,15 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const apiPort = process.env.PORT ?? "8787";
-
+// The UI is served by the Mac app's local server (desktop/src/server). Build it with
+// `npm run build`, then run the app with `npm run desktop`.
 export default defineConfig({
   plugins: [react()],
-  server: {
-    host: "127.0.0.1",
-    port: 5173,
-    proxy: {
-      "/api": { target: `http://127.0.0.1:${apiPort}`, changeOrigin: false },
-    },
-  },
 });

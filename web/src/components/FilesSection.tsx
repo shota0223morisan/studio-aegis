@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { api, uploadFiles, type FileCategory, type StoredFile } from "../lib/api";
 import { formatBytes, formatDate } from "../lib/format";
-import { useSpotify } from "../lib/SpotifyContext";
 
 const CATEGORIES: { value: FileCategory; label: string; hint: string }[] = [
   { value: "client_ref", label: "先方リファレンス", hint: "先方から届いた参考音源・デモ" },
@@ -24,19 +23,14 @@ export function FilesSection({
   maxUploadBytes: number;
   onFilesChange: (files: StoredFile[]) => void;
 }) {
-  const spotify = useSpotify();
   const filesRef = useRef(files);
   filesRef.current = files;
 
-  // Only one source plays at a time: other <audio> elements and the Spotify player pause.
-  const spotifyRef = useRef(spotify);
-  spotifyRef.current = spotify;
+  // Only one file plays at a time.
   useEffect(() => {
     const onPlay = (e: Event) => {
       if (!(e.target instanceof HTMLAudioElement)) return;
       document.querySelectorAll("audio").forEach((a) => a !== e.target && a.pause());
-      const s = spotifyRef.current;
-      if (s.nowPlaying && !s.nowPlaying.paused) s.togglePlay();
     };
     document.addEventListener("play", onPlay, true);
     return () => document.removeEventListener("play", onPlay, true);
@@ -134,11 +128,11 @@ function FileGroup({
         {progress !== null ? (
           <div className="progress">
             <div className="progress-bar" style={{ width: `${Math.round(progress * 100)}%` }} />
-            <span>アップロード中 {Math.round(progress * 100)}%</span>
+            <span>追加中 {Math.round(progress * 100)}%</span>
           </div>
         ) : (
           <>
-            <span>ドロップ or クリックしてアップロード</span>
+            <span>ドロップ or クリックして追加</span>
             <span className="muted small">{category.hint}</span>
           </>
         )}

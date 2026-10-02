@@ -1,5 +1,11 @@
-// Bridge exposed to the web app (and the local setup/error pages) as window.aegisDesktop.
+// Bridge exposed to the web UI as window.aegisDesktop.
 const { contextBridge, ipcRenderer } = require("electron");
+
+function subscribe(channel, cb) {
+  const listener = (_e, value) => cb(value);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
 
 contextBridge.exposeInMainWorld("aegisDesktop", {
   isDesktop: true,
@@ -8,13 +14,11 @@ contextBridge.exposeInMainWorld("aegisDesktop", {
   closeSplice: () => ipcRenderer.invoke("splice:close"),
   isSpliceOpen: () => ipcRenderer.invoke("splice:state"),
   /** Subscribe to the Splice side panel opening/closing. Returns an unsubscribe function. */
-  onSplicePanel: (cb) => {
-    const listener = (_e, open) => cb(Boolean(open));
-    ipcRenderer.on("splice-panel", listener);
-    return () => ipcRenderer.removeListener("splice-panel", listener);
-  },
-  getConfig: () => ipcRenderer.invoke("config:get"),
-  setServerUrl: (url) => ipcRenderer.invoke("config:setServerUrl", url),
-  retry: () => ipcRenderer.invoke("app:retry"),
-  showSetup: () => ipcRenderer.invoke("app:showSetup"),
+  onSplicePanel: (cb) => subscribe("splice-panel", (open) => cb(Boolean(open))),
+  getInfo: () => ipcRenderer.invoke("app:info"),
+  openDataFolder: () => ipcRenderer.invoke("app:openDataFolder"),
+  exportBackup: () => ipcRenderer.invoke("app:exportBackup"),
+  checkForUpdate: () => ipcRenderer.invoke("app:checkForUpdate"),
+  onUpdateAvailable: (cb) => subscribe("update-available", cb),
+  openExternal: (url) => ipcRenderer.invoke("app:openExternal", url),
 });

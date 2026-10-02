@@ -1,52 +1,29 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link, Route, Routes } from "react-router-dom";
-import { api, UNAUTHORIZED_EVENT, type Session } from "./lib/api";
+import { useEffect, useState } from "react";
+import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { api, type Session } from "./lib/api";
+import { desktop, type UpdateInfo } from "./lib/desktop";
 import { SpotifyProvider } from "./lib/SpotifyContext";
-import { LoginPage } from "./pages/LoginPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectPage } from "./pages/ProjectPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { PlayerBar } from "./components/PlayerBar";
 import { SpotifyAccount } from "./components/SpotifyAccount";
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setSession(await api.session());
-      setError(null);
-    } catch {
-      setError("サーバーに接続できません");
-    }
-  }, []);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
-    void load();
-    const onUnauthorized = () => void load();
-    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
-    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
-  }, [load]);
+    api
+      .session()
+      .then(setSession)
+      .catch(() => setError("起動に失敗しました。アプリを開き直してください。"));
+    return desktop?.onUpdateAvailable(setUpdate);
+  }, []);
 
   if (error) return <div className="center-screen muted">{error}</div>;
   if (!session) return <div className="center-screen muted">読み込み中…</div>;
-  if (session.setupRequired) {
-    return (
-      <div className="center-screen">
-        <div className="login">
-          <h1 className="brand-lg">Studio Aegis</h1>
-          <p>
-            パスワードが未設定のため、安全のため停止しています。ターミナルで
-            <br />
-            <code>npx wrangler secret put APP_PASSWORD</code>
-            <br />
-            を実行してから、このページを再読み込みしてください。
-          </p>
-        </div>
-      </div>
-    );
-  }
-  if (session.authRequired && !session.authenticated) return <LoginPage onLoggedIn={load} />;
 
   return (
     <SpotifyProvider>
@@ -57,23 +34,27 @@ export function App() {
           </Link>
           <div className="topbar-right">
             <SpotifyAccount />
-            {session.authRequired && (
-              <button
-                className="btn ghost small"
-                onClick={async () => {
-                  await api.logout();
-                  await load();
-                }}
-              >
-                ログアウト
-              </button>
-            )}
+            <NavLink to="/settings" className="btn ghost small">
+              設定
+            </NavLink>
           </div>
         </header>
+        {update?.available && (
+          <div className="update-banner">
+            新しいバージョン {update.latest} があります。
+            <button className="btn small" onClick={() => update.url && void desktop?.openExternal(update.url)}>
+              ダウンロードページを開く
+            </button>
+            <button className="btn ghost small" onClick={() => setUpdate(null)}>
+              あとで
+            </button>
+          </div>
+        )}
         <main className="main">
           <Routes>
             <Route path="/" element={<ProjectsPage />} />
             <Route path="/p/:id" element={<ProjectPage session={session} />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<p className="muted">ページが見つかりません</p>} />
           </Routes>
         </main>

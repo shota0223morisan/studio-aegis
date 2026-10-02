@@ -1,50 +1,28 @@
-// Studio Aegis desktop shell.
+// Studio Aegis — Mac app.
 //
-// The app itself is the Cloudflare-hosted web app (so data stays in sync with phones etc.);
-// this shell adds what a browser can't: Splice shown inside the app window as a side panel
-// (splice.com refuses iframes, but a separate web view is a normal top-level page), a Dock
-// icon, and native menus.
-const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme } = require("electron");
+// Everything runs on this Mac: a small local server (127.0.0.1 only) keeps projects in SQLite and
+// files on disk under ~/Library/Application Support/Studio Aegis/data, and serves the UI.
+// The window also shows Splice in a side panel (splice.com refuses iframes, but a separate web
+// view is a normal top-level page).
+const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, dialog, session } = require("electron");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
-const { studioAegis } = require("../package.json");
+const { openDatabase } = require("./server/db");
+const { createServer } = require("./server/server");
 
+const PORT = Number(process.env.AEGIS_PORT) || 47823; // fixed: the Spotify redirect URI includes it
+const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PRELOAD = path.join(__dirname, "preload.js");
-const SETUP_PAGE = path.join(__dirname, "setup.html");
-const ERROR_PAGE = path.join(__dirname, "error.html");
+const RELEASES_API = "https://api.github.com/repos/shota0223morisan/studio-aegis/releases/latest";
 const SPLICE_HOST = /(^|\.)splice\.com$/;
 // OAuth / login pages that must stay inside the window so the redirect back to the app works.
 const AUTH_HOSTS = /(^|\.)(spotify\.com|google\.com|apple\.com|facebook\.com|splice\.com)$/;
 
-// ---- Config (server URL, window bounds) ------------------------------------
+const dataDir = () => path.join(app.getPath("userData"), "data");
+const webDir = () => (app.isPackaged ? path.join(process.resourcesPath, "web") : path.join(__dirname, "../../web/dist"));
 
-const configPath = () => path.join(app.getPath("userData"), "config.json");
-
-function readConfig() {
-  try {
-    return JSON.parse(fs.readFileSync(configPath(), "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeConfig(patch) {
-  const next = { ...readConfig(), ...patch };
-  fs.mkdirSync(path.dirname(configPath()), { recursive: true });
-  fs.writeFileSync(configPath(), JSON.stringify(next, null, 2));
-  return next;
-}
-
-// AEGIS_SERVER_URL overrides the saved URL (handy for local development: npm start with wrangler dev).
-const serverUrl = () => process.env.AEGIS_SERVER_URL || readConfig().serverUrl || studioAegis.defaultServerUrl || "";
-
-function sameOrigin(url, base) {
-  try {
-    return new URL(url).origin === new URL(base).origin;
-  } catch {
-    return false;
-  }
-}
+let store = null;
 
 function hostOf(url) {
   try {
@@ -58,13 +36,22 @@ function openExternal(url) {
   if (/^https?:\/\//.test(url)) void shell.openExternal(url);
 }
 
+// ---- Window state ------------------------------------------------------------
+
+const statePath = () => path.join(app.getPath("userData"), "window-state.json");
+
+function readBounds() {
+  try {
+    return JSON.parse(fs.readFileSync(statePath(), "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
 // ---- Window & views --------------------------------------------------------
 
-/** @type {BaseWindow | null} */
 let win = null;
-/** @type {WebContentsView | null} */
 let appView = null;
-/** @type {WebContentsView | null} */
 let spliceView = null;
 let spliceOpen = false;
 const SPLICE_RATIO = 0.42;
@@ -92,16 +79,7 @@ function addContextMenu(contents) {
   });
 }
 
-function loadApp() {
-  const url = serverUrl();
-  if (!appView) return;
-  if (!url) void appView.webContents.loadFile(SETUP_PAGE);
-  else void appView.webContents.loadURL(url);
-}
-
-function showSetup() {
-  void appView?.webContents.loadFile(SETUP_PAGE, { query: { url: serverUrl() } });
-}
+const loadApp = () => void appView?.webContents.loadURL(`${ORIGIN}/`);
 
 function createAppView() {
   const view = new WebContentsView({
@@ -111,13 +89,9 @@ function createAppView() {
   const contents = view.webContents;
 
   // Stay inside the app for its own pages and OAuth round-trips; everything else → browser.
+  // (Also stops a file dropped outside a drop zone from replacing the page.)
   contents.on("will-navigate", (e, url) => {
-    if (url.startsWith("file:")) {
-      // Our setup/error pages are fine; a file dropped outside a drop zone is not.
-      if (!url.includes("/src/setup.html") && !url.includes("/src/error.html")) e.preventDefault();
-      return;
-    }
-    if (sameOrigin(url, serverUrl()) || AUTH_HOSTS.test(hostOf(url))) return;
+    if (url.startsWith(`${ORIGIN}/`) || AUTH_HOSTS.test(hostOf(url))) return;
     e.preventDefault();
     openExternal(url);
   });
@@ -126,11 +100,6 @@ function createAppView() {
     if (SPLICE_HOST.test(hostOf(url))) openSplice(url);
     else openExternal(url);
     return { action: "deny" };
-  });
-
-  contents.on("did-fail-load", (_e, code, description, url, isMainFrame) => {
-    if (!isMainFrame || code === -3 /* aborted (e.g. redirect) */) return;
-    void contents.loadFile(ERROR_PAGE, { query: { code: String(code), description, url } });
   });
 
   addContextMenu(contents);
@@ -150,7 +119,7 @@ function ensureSpliceView() {
       openExternal(url);
     }
   });
-  // Allow login popups (Google / Apple sign-in) to open as real windows; other popups → browser.
+  // Allow login popups (Google / Apple sign-in) as real windows; other popups → browser.
   contents.setWindowOpenHandler(({ url }) => {
     if (AUTH_HOSTS.test(hostOf(url))) return { action: "allow" };
     openExternal(url);
@@ -188,7 +157,7 @@ function closeSplice() {
 }
 
 function createWindow() {
-  const bounds = readConfig().bounds;
+  const bounds = readBounds();
   win = new BaseWindow({
     width: bounds?.width ?? 1360,
     height: bounds?.height ?? 900,
@@ -203,7 +172,7 @@ function createWindow() {
   win.contentView.addChildView(appView);
   layout();
   win.on("resize", layout);
-  win.on("close", () => writeConfig({ bounds: win.getBounds() }));
+  win.on("close", () => fs.writeFileSync(statePath(), JSON.stringify(win.getBounds())));
   win.on("closed", () => {
     win = null;
     appView = null;
@@ -213,7 +182,59 @@ function createWindow() {
   loadApp();
 }
 
-// ---- IPC from the web app / setup pages -----------------------------------
+// ---- Data folder, backup, updates -------------------------------------------
+
+async function exportBackup() {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: "バックアップの保存先を選択",
+    buttonLabel: "ここに保存",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (canceled || !filePaths[0]) return { ok: false };
+  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "");
+  const dest = path.join(filePaths[0], `Studio Aegis バックアップ ${stamp}`);
+  fs.mkdirSync(dest, { recursive: true });
+  // VACUUM INTO writes a consistent snapshot even while the database is open.
+  store.db.prepare("VACUUM INTO ?").run(path.join(dest, "aegis.db"));
+  fs.cpSync(store.filesDir, path.join(dest, "files"), { recursive: true });
+  shell.showItemInFolder(dest);
+  return { ok: true, path: dest };
+}
+
+function newerThan(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  return false;
+}
+
+async function checkForUpdate() {
+  try {
+    const res = await fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return { current: app.getVersion(), latest: null, available: false };
+    const release = await res.json();
+    const latest = String(release.tag_name ?? "").replace(/^desktop-v/, "");
+    return { current: app.getVersion(), latest, available: newerThan(latest, app.getVersion()), url: release.html_url };
+  } catch {
+    return { current: app.getVersion(), latest: null, available: false };
+  }
+}
+
+async function checkForUpdateFromMenu() {
+  const r = await checkForUpdate();
+  if (r.available) {
+    const { response } = await dialog.showMessageBox({
+      message: `新しいバージョン ${r.latest} があります`,
+      detail: `いまのバージョン: ${r.current}\nダウンロードページで dmg を入れ直すと更新できます(データはそのまま残ります)。`,
+      buttons: ["ダウンロードページを開く", "あとで"],
+    });
+    if (response === 0) openExternal(r.url);
+  } else {
+    await dialog.showMessageBox({ message: r.latest ? "最新バージョンです" : "更新を確認できませんでした", detail: `バージョン ${r.current}` });
+  }
+}
+
+// ---- IPC from the web UI ---------------------------------------------------
 
 ipcMain.handle("splice:open", (_e, url) => {
   if (typeof url !== "string") return;
@@ -222,25 +243,11 @@ ipcMain.handle("splice:open", (_e, url) => {
 });
 ipcMain.handle("splice:close", () => closeSplice());
 ipcMain.handle("splice:state", () => spliceOpen);
-
-ipcMain.handle("config:get", () => ({ serverUrl: serverUrl(), defaultServerUrl: studioAegis.defaultServerUrl || "" }));
-ipcMain.handle("config:setServerUrl", (_e, value) => {
-  let url;
-  try {
-    url = new URL(String(value).trim());
-  } catch {
-    return { ok: false, error: "URL の形式が正しくありません" };
-  }
-  const local = ["127.0.0.1", "localhost"].includes(url.hostname);
-  if (url.protocol !== "https:" && !(local && url.protocol === "http:")) {
-    return { ok: false, error: "https:// で始まる URL を入力してください" };
-  }
-  writeConfig({ serverUrl: url.origin });
-  loadApp();
-  return { ok: true };
-});
-ipcMain.handle("app:retry", () => loadApp());
-ipcMain.handle("app:showSetup", () => showSetup());
+ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataDir: dataDir() }));
+ipcMain.handle("app:openDataFolder", () => shell.openPath(dataDir()));
+ipcMain.handle("app:exportBackup", () => exportBackup());
+ipcMain.handle("app:checkForUpdate", () => checkForUpdate());
+ipcMain.handle("app:openExternal", (_e, url) => openExternal(String(url)));
 
 // ---- Menu ------------------------------------------------------------------
 
@@ -258,8 +265,7 @@ function buildMenu() {
             label: app.name,
             submenu: [
               { role: "about", label: "Studio Aegis について" },
-              { type: "separator" },
-              { label: "サーバー URL を変更…", click: showSetup },
+              { label: "アップデートを確認…", click: () => void checkForUpdateFromMenu() },
               { type: "separator" },
               { role: "hide", label: "Studio Aegis を隠す" },
               { role: "hideOthers", label: "ほかを隠す" },
@@ -270,6 +276,13 @@ function buildMenu() {
           },
         ]
       : []),
+    {
+      label: "ファイル",
+      submenu: [
+        { label: "データフォルダを Finder で開く", click: () => void shell.openPath(dataDir()) },
+        { label: "バックアップを書き出す…", click: () => void exportBackup() },
+      ],
+    },
     {
       label: "編集",
       submenu: [
@@ -286,7 +299,7 @@ function buildMenu() {
       label: "表示",
       submenu: [
         { label: "再読み込み", accelerator: "CmdOrCtrl+R", click: () => focusedContents()?.reload() },
-        { label: "ホームに戻る", accelerator: "CmdOrCtrl+Shift+H", click: loadApp },
+        { label: "案件一覧に戻る", accelerator: "CmdOrCtrl+Shift+H", click: loadApp },
         { type: "separator" },
         { label: "戻る", accelerator: "CmdOrCtrl+[", click: () => focusedContents()?.navigationHistory.goBack() },
         { label: "進む", accelerator: "CmdOrCtrl+]", click: () => focusedContents()?.navigationHistory.goForward() },
@@ -317,6 +330,38 @@ function buildMenu() {
 
 // ---- Lifecycle -------------------------------------------------------------
 
+async function start() {
+  app.setAboutPanelOptions({ applicationName: "Studio Aegis", applicationVersion: app.getVersion() });
+  store = openDatabase(dataDir());
+
+  // Per-launch secret: only this app's window carries it, so other apps / browsers can't use the API.
+  const sessionToken = crypto.randomBytes(32).toString("hex");
+  try {
+    await createServer({ store, webDir: webDir(), port: PORT, sessionToken });
+  } catch (err) {
+    dialog.showErrorBox(
+      "Studio Aegis を起動できません",
+      err?.code === "EADDRINUSE" ? `ポート ${PORT} がほかのアプリに使われています。そのアプリを終了してから開き直してください。` : String(err),
+    );
+    app.quit();
+    return;
+  }
+  // Lax (not Strict) so the cookie survives the redirect back from Spotify's login page.
+  await session.defaultSession.cookies.set({ url: ORIGIN, name: "aegis_session", value: sessionToken, httpOnly: true, sameSite: "lax" });
+
+  buildMenu();
+  createWindow();
+  app.on("activate", () => {
+    if (!win) createWindow();
+  });
+
+  // Quiet update check shortly after launch; the UI shows a banner if there's a newer dmg.
+  setTimeout(async () => {
+    const r = await checkForUpdate();
+    if (r.available) appView?.webContents.send("update-available", r);
+  }, 5000);
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -325,16 +370,7 @@ if (!app.requestSingleInstanceLock()) {
     if (win.isMinimized()) win.restore();
     win.focus();
   });
-
-  app.whenReady().then(() => {
-    app.setAboutPanelOptions({ applicationName: "Studio Aegis", applicationVersion: app.getVersion() });
-    buildMenu();
-    createWindow();
-    app.on("activate", () => {
-      if (!win) createWindow();
-    });
-  });
-
+  app.whenReady().then(start);
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
   });

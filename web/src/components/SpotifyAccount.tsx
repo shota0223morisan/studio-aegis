@@ -6,7 +6,7 @@ const CALLBACK_MESSAGES: Record<string, string> = {
   connected: "Spotify に接続しました",
   state_mismatch: "Spotify 接続に失敗しました(state 不一致)。もう一度お試しください。",
   access_denied: "Spotify 接続がキャンセルされました",
-  error: "Spotify 接続に失敗しました。Redirect URI の設定を確認してください。",
+  error: "Spotify 接続に失敗しました。設定画面の Redirect URI が Spotify 側に登録されているか確認してください。",
 };
 
 /** Header widget: connect / disconnect Spotify, and surface the OAuth callback result. */
@@ -25,7 +25,7 @@ export function SpotifyAccount() {
     if (result !== "connected") window.alert(CALLBACK_MESSAGES[result] ?? `Spotify 接続エラー: ${result}`);
   }, [location, navigate, refreshStatus]);
 
-  if (!status?.configured) return null;
+  if (!status?.configured) return null; // set up from the settings screen
   if (!status.connected) {
     const returnTo = encodeURIComponent(location.pathname);
     return (

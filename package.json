@@ -1,27 +1,13 @@
 {
   "name": "studio-aegis",
   "private": true,
-  "version": "0.2.0",
-  "description": "Personal music-production hub: references, notes, samples and deliverables per project.",
-  "workspaces": [
-    "web",
-    "worker"
-  ],
+  "version": "0.3.0",
+  "description": "Personal music-production hub for Mac: references, notes, Splice and audio files per project.",
+  "workspaces": ["web"],
   "scripts": {
-    "dev": "npm run build -w web && concurrently -k -n worker,web -c blue,magenta \"npm run dev -w worker\" \"npm run dev -w web\"",
     "build": "npm run build -w web",
-    "typecheck": "npm run typecheck -w worker && npm run typecheck -w web",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
-    "setup:cloudflare": "node scripts/setup-cloudflare.mjs",
-    "deploy": "npm run build && npm run db:migrate:remote && wrangler deploy",
-    "deploy:ci": "wrangler d1 migrations apply DB --remote && wrangler deploy"
+    "typecheck": "npm run typecheck -w web",
+    "desktop": "npm run build && npm --prefix desktop start"
   },
-  "devDependencies": {
-    "concurrently": "^9.1.2",
-    "wrangler": "^4.146.0"
-  },
-  "engines": {
-    "node": ">=20"
-  }
+  "engines": { "node": ">=20" }
 }
