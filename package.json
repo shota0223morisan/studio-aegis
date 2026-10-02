@@ -1,0 +1,17 @@
+{
+  "name": "studio-aegis",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Personal music-production hub: references, notes, samples and deliverables per project.",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w web && npm run build -w server",
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": { "node": ">=22.13" }
+}
