@@ -22,8 +22,8 @@ contextBridge.exposeInMainWorld("aegisDesktop", {
   applyPreset: (name) => ipcRenderer.invoke("pane:preset", name),
   tabMenu: (tab) => ipcRenderer.invoke("pane:tabMenu", tab),
   nowPlaying: () => ipcRenderer.invoke("pane:nowPlaying"),
-  /** Play a song in the Mac's Spotify app (position "1:23" optional). */
-  playOnSpotify: (req) => ipcRenderer.invoke("spotify:play", req),
+  /** Play a song in the YT Music tab (position "1:23" optional). */
+  playSong: (req) => ipcRenderer.invoke("media:play", req),
   paneDrag: (side, screenX) => ipcRenderer.send("pane:drag", side, screenX),
   paneDragEnd: () => ipcRenderer.send("pane:dragEnd"),
   onPaneState: (cb) => subscribe("pane-state", cb),

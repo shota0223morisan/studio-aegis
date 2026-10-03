@@ -18,7 +18,7 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PRELOAD = path.join(__dirname, "preload.js");
 const SPLICE_HOST = /(^|\.)splice\.com$/;
 // OAuth / login pages that must stay inside the window so the redirect back to the app works.
-const AUTH_HOSTS = /(^|\.)(spotify\.com|google\.com|apple\.com|facebook\.com|splice\.com|discord\.com|clerk\.com|microsoftonline\.com)$/;
+const AUTH_HOSTS = /(^|\.)(spotify\.com|google\.com|apple\.com|facebook\.com|splice\.com|discord\.com|clerk\.com|microsoftonline\.com|live\.com|openai\.com)$/;
 
 const dataDir = () => path.join(app.getPath("userData"), "data");
 const webDir = () => (app.isPackaged ? path.join(process.resourcesPath, "web") : path.join(__dirname, "../../web/dist"));
@@ -274,7 +274,11 @@ function ensureContent(name) {
   // Login popups (Google / Apple / Facebook / Discord) open as real windows; other links stay in the panes.
   contents.setWindowOpenHandler(({ url }) => {
     const host = hostOf(url);
-    if (name !== "web" && AUTH_HOSTS.test(host) && !tab.host.test(host)) return { action: "allow" };
+    // Sign-in popups (Google / Apple / Microsoft …, or a blank window the site fills in) open as real
+    // windows in the same session, so "ログイン" buttons that need a popup work (Notion, Splice, Suno…).
+    if (!url || url === "about:blank" || (AUTH_HOSTS.test(host) && (name === "web" || !tab.host.test(host)))) {
+      return { action: "allow", overrideBrowserWindowOptions: { width: 520, height: 720, autoHideMenuBar: true } };
+    }
     if (tab.host.test(host)) void contents.loadURL(url);
     else routeUrl(url);
     return { action: "deny" };
@@ -409,14 +413,13 @@ async function nowPlaying() {
   return null;
 }
 
-// ---- Play a song in the Mac's Spotify app (from a Notion idea, etc.) ----------
+// ---- Play a song in YouTube Music (Notion ideas, references, suggestions) ------
 //
-// The in-app Spotify can't make sound (no DRM), so the desktop Spotify app plays it:
-// 1. find the track: Spotify's own search page, loaded in a hidden window (no API key needed)
-// 2. play it with AppleScript, jumping to the noted position.
+// 1. find the song: YouTube Music's own search page, loaded in a hidden window (cached)
+// 2. open it in the YT Music tab (it plays inside the app) and jump to the noted position.
 
-let spotifySearchWin = null;
-const TRACK_CACHE_KEY = "spotify.trackCache";
+let ytSearchWin = null;
+const YT_CACHE_KEY = "ytmusic.songCache";
 
 const norm = (t) => String(t ?? "").toLowerCase().normalize("NFKC").replace(/[\s・'’"()（）「」\-–—.,!?！？]/g, "");
 
@@ -428,87 +431,87 @@ function parsePosition(text) {
   return parts.reduce((a, b) => a * 60 + b, 0);
 }
 
-async function findSpotifyTrack(title, artist) {
+async function findYtMusicSong(title, artist) {
   const q = [title, artist].filter(Boolean).join(" ").trim();
   if (!q) return null;
-  const cache = store.kvGet(TRACK_CACHE_KEY) ?? {};
+  const cache = store.kvGet(YT_CACHE_KEY) ?? {};
   if (cache[q]) return cache[q];
-  if (!spotifySearchWin || spotifySearchWin.isDestroyed()) {
-    prepareSession(session.fromPartition("persist:spotify"));
-    spotifySearchWin = new BrowserWindow({ show: false, webPreferences: { partition: "persist:spotify", sandbox: true, contextIsolation: true } });
-    spotifySearchWin.webContents.setAudioMuted(true);
+  if (!ytSearchWin || ytSearchWin.isDestroyed()) {
+    prepareSession(session.fromPartition(TABS.ytmusic.partition));
+    ytSearchWin = new BrowserWindow({ show: false, webPreferences: { partition: TABS.ytmusic.partition, sandbox: true, contextIsolation: true } });
+    ytSearchWin.webContents.setAudioMuted(true);
   }
-  const wc = spotifySearchWin.webContents;
-  await wc.loadURL(`https://open.spotify.com/search/${encodeURIComponent(q)}/tracks`).catch(() => {});
+  const wc = ytSearchWin.webContents;
+  await wc.loadURL(`https://music.youtube.com/search?q=${encodeURIComponent(q)}`).catch(() => {});
   let rows = [];
   for (let i = 0; i < 30 && !rows.length; i++) {
     await new Promise((r) => setTimeout(r, 400));
+    // The "top result" card first, then the song rows.
     rows = await wc
       .executeJavaScript(
-        `[...document.querySelectorAll('a[href*="/track/"]')].slice(0, 12).map((a) => {
-          const row = a.closest('[data-testid="tracklist-row"], [role="row"]');
-          return { href: a.getAttribute("href"), name: a.innerText || "", text: row ? row.innerText : a.innerText || "" };
-        })`,
+        `[...document.querySelectorAll('ytmusic-card-shelf-renderer, ytmusic-responsive-list-item-renderer')].flatMap((el) => {
+          const a = el.querySelector('a[href*="watch?v="]');
+          return a ? [{ href: a.getAttribute("href"), text: el.innerText || "", top: el.tagName === "YTMUSIC-CARD-SHELF-RENDERER" }] : [];
+        }).slice(0, 12)`,
       )
       .catch(() => []);
   }
   if (!rows.length) return null;
+  // Score the candidates: the song itself beats lyric videos, covers and the like.
+  // (Artist names may be shown romanised, e.g. "OFFICIAL HIGE DANDISM", so they only add points.)
   const a = norm(artist);
   const t = norm(title);
-  const pick =
-    rows.find((r) => (!a || norm(r.text).includes(a)) && (!t || norm(r.name).includes(t) || t.includes(norm(r.name)))) ??
-    rows.find((r) => !a || norm(r.text).includes(a)) ??
-    rows[0];
-  const id = String(pick.href).match(/\/track\/([A-Za-z0-9]+)/)?.[1];
+  const score = (r, i) => {
+    const text = norm(r.text);
+    const parts = String(r.text).split("\n").map((x) => x.trim());
+    let n = -i * 0.2;
+    if (t && text.includes(t)) n += 4;
+    if (a && text.includes(a)) n += 2;
+    if (parts.some((x) => /^(song|曲|노래)$/i.test(x))) n += 2;
+    if (i === 0 && r.top) n += 1.5;
+    if (/歌詞|lyrics?|가사|cover|カバー|弾いてみた|叩いてみた|歌ってみた|弾き語り|드럼|drum|piano ver|karaoke|カラオケ|instrumental|reaction|해석|発音|발음|歌い方|解説|ボイトレ|ボイストレーナー|レッスン|講座|tutorial|lesson/i.test(r.text)) n -= 5;
+    if (/\blive\b|ライブ/i.test(r.text)) n -= 1;
+    return n;
+  };
+  const pick = rows.map((r, i) => ({ r, n: score(r, i) })).sort((x, y) => y.n - x.n)[0].r;
+  const id = String(pick.href).match(/[?&]v=([\w-]{6,})/)?.[1];
   if (!id) return null;
-  const hit = { id, name: pick.name };
-  store.kvSet(TRACK_CACHE_KEY, { ...cache, [q]: hit });
+  const hit = { id, name: String(pick.text).split("\n")[0].trim() };
+  store.kvSet(YT_CACHE_KEY, { ...cache, [q]: hit });
   return hit;
 }
 
-function osascript(script) {
-  return new Promise((resolve, reject) =>
-    execFile("osascript", ["-e", script], { timeout: 20_000 }, (err, _out, stderr) => (err ? reject(new Error(String(stderr || err.message))) : resolve())),
-  );
-}
-
-async function playOnSpotify({ title, artist, position }) {
+async function playSong({ title, artist, position }) {
   const q = [title, artist].filter(Boolean).join(" ").trim();
   if (!q) return { ok: false, message: "曲名がありません" };
-  const track = await findSpotifyTrack(title, artist).catch(() => null);
-  if (!track) {
-    openExternal(`https://open.spotify.com/search/${encodeURIComponent(q)}`);
-    return { ok: false, message: "Spotify で曲を特定できませんでした。検索結果を開きます" };
+  const song = await findYtMusicSong(title, artist).catch(() => null);
+  if (!song) {
+    openInPane("ytmusic", `https://music.youtube.com/search?q=${encodeURIComponent(q)}`);
+    return { ok: false, message: "曲を特定できなかったので、YouTube Music の検索結果を開きました" };
   }
-  const uri = `spotify:track:${track.id}`;
+  openInPane("ytmusic", `https://music.youtube.com/watch?v=${song.id}`);
   const sec = parsePosition(position);
-  if (process.platform !== "darwin") {
-    openExternal(`https://open.spotify.com/track/${track.id}`);
-    return { ok: true, track: track.name, position: 0 };
+  const wc = content.ytmusic?.webContents;
+  if (wc) {
+    // Wait for the player, then seek; YouTube may reset the position while it starts up, so keep
+    // re-applying until it has held for a moment (and make sure it plays).
+    void (async () => {
+      let held = 0;
+      for (let i = 0; i < 60 && held < 3; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        const ok = await wc
+          .executeJavaScript(
+            `(() => { const v = document.querySelector("video"); if (!v || v.readyState < 1 || !location.href.includes("${song.id}")) return false;
+              if (v.paused) v.play().catch(() => {});
+              ${sec > 0 ? `if (Math.abs(v.currentTime - ${sec}) > 3 && v.currentTime < ${sec}) { v.currentTime = ${sec}; return false; }` : ""}
+              return true; })()`,
+          )
+          .catch(() => false);
+        held = ok ? held + 1 : 0;
+      }
+    })();
   }
-  try {
-    await osascript(
-      [
-        'if application "Spotify" is not running then',
-        '  tell application "Spotify" to launch',
-        "  delay 3",
-        "end if",
-        'tell application "Spotify"',
-        `  play track "${uri}"`,
-        ...(sec > 0 ? ["  delay 0.8", `  set player position to ${sec}`] : []),
-        "end tell",
-      ].join("\n"),
-    );
-    return { ok: true, track: track.name, position: sec };
-  } catch (err) {
-    const msg = String(err.message);
-    if (/-1743|not authori[sz]ed|許可/.test(msg)) {
-      return { ok: false, message: "Spotify を操作する許可がありません。システム設定 →「プライバシーとセキュリティ」→「オートメーション」で Studio Aegis の「Spotify」をオンにしてください" };
-    }
-    // Spotify app not installed etc.: open the track page instead.
-    openExternal(`https://open.spotify.com/track/${track.id}`);
-    return { ok: false, message: "Mac の Spotify アプリで再生できなかったので、曲のページを開きます" };
-  }
+  return { ok: true, track: song.name, position: sec };
 }
 
 /** Open a page in Chrome / Safari specifically (falls back to the default browser). */
@@ -661,8 +664,8 @@ ipcMain.handle("pane:moveTab", (_e, name) => moveTab(String(name)));
 ipcMain.handle("pane:swap", () => swapSides());
 ipcMain.handle("pane:preset", (_e, name) => applyPreset(String(name)));
 ipcMain.handle("pane:nowPlaying", () => nowPlaying());
-ipcMain.handle("spotify:play", (_e, req) =>
-  playOnSpotify({ title: String(req?.title ?? "").slice(0, 300), artist: String(req?.artist ?? "").slice(0, 300), position: String(req?.position ?? "").slice(0, 40) }),
+ipcMain.handle("media:play", (_e, req) =>
+  playSong({ title: String(req?.title ?? "").slice(0, 300), artist: String(req?.artist ?? "").slice(0, 300), position: String(req?.position ?? "").slice(0, 40) }),
 );
 // Right-click on a tab: move it to the other side.
 ipcMain.handle("pane:tabMenu", (e, name) => {

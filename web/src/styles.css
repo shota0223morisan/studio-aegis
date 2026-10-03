@@ -578,3 +578,12 @@ body.pane-tabs-body { background-image: none; overflow: hidden; }
 .idea-item:hover .idea-notion, .idea-notion:focus-visible { opacity: 1; }
 .idea-card.playable:hover .idea-play { color: var(--spotify); text-shadow: 0 0 8px var(--spotify); }
 .idea-play { color: var(--spotify); font-size: 10px; }
+
+/* Fold a card by clicking its title */
+.card > .section-head h2 { cursor: pointer; user-select: none; }
+.card > .section-head h2::after { content: "▾"; display: inline-block; margin-left: 6px; font-size: 0.75em; color: var(--muted); transition: transform 0.15s; }
+.card > .section-head h2:hover::after { color: var(--accent); }
+.card.folded > .section-head h2::after { transform: rotate(-90deg); }
+.card.folded > :not(.section-head) { display: none !important; }
+.card.folded > .section-head { margin-bottom: 0; }
+.card.folded { padding-top: 12px; padding-bottom: 12px; }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { filled, type Flow, type SimilarSong } from "../../lib/flow";
-import { openListen } from "./RefSlots";
+import { playSong } from "../../lib/play";
 
 /** SIMILAR: songs musically close to the references (Claude's knowledge; key ignored). */
 export function SimilarSongs({ projectId, flow, update }: { projectId: string; flow: Flow; update: (fn: (f: Flow) => Flow) => void }) {
@@ -75,7 +75,7 @@ export function SimilarSongs({ projectId, flow, update }: { projectId: string; f
                 </span>
               </div>
               <div className="similar-actions">
-                <button className="chip-btn" onClick={() => openListen("ytmusic", `${s.title} ${s.artist}`)}>
+                <button className="chip-btn" onClick={() => void playSong(s.title, s.artist)}>
                   ▶ 聴く
                 </button>
                 <button className="chip-btn" onClick={() => addToRefs(s)}>

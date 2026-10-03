@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type NotionIdea, type NotionIdeas, type NotionOption } from "../lib/api";
 import { desktop } from "../lib/desktop";
 import { formatRelative } from "../lib/format";
+import { playSong } from "../lib/play";
 
 const PAGE = 12;
 // Properties shown as chips (in this order) and as meta text.
@@ -24,28 +25,6 @@ export function IdeasPanel({ index }: { index?: string }) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [shown, setShown] = useState(PAGE);
-  const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
-  const toastTimer = useRef<number | undefined>(undefined);
-
-  function flash(text: string, error = false, ms = 3500) {
-    window.clearTimeout(toastTimer.current);
-    setToast({ text, error });
-    if (ms) toastTimer.current = window.setTimeout(() => setToast(null), ms);
-  }
-
-  async function play(idea: NotionIdea) {
-    const song = text(idea, "曲");
-    const artist = text(idea, "アーティスト");
-    const pos = text(idea, "位置(mm:ss)");
-    if (!desktop) {
-      window.open(`https://open.spotify.com/search/${encodeURIComponent(`${song} ${artist}`)}`, "_blank", "noreferrer");
-      return;
-    }
-    flash(`Spotify で「${song}」を探しています…`, false, 0);
-    const r = await desktop.playOnSpotify({ title: song, artist, position: pos });
-    if (r.ok) flash(`▶ Spotify で再生: ${r.track || song}${artist ? ` — ${artist}` : ""}${r.position ? `(${pos} から)` : ""}`);
-    else flash(r.message ?? "再生できませんでした", true, 6000);
-  }
 
   async function load(refresh = false) {
     setLoading(true);
@@ -54,6 +33,10 @@ export function IdeasPanel({ index }: { index?: string }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function play(idea: NotionIdea) {
+    await playSong(text(idea, "曲"), text(idea, "アーティスト"), text(idea, "位置(mm:ss)"));
   }
 
   useEffect(() => {
@@ -147,7 +130,6 @@ export function IdeasPanel({ index }: { index?: string }) {
               ))}
             </ul>
           )}
-          {toast && <div className={`toast ${toast.error ? "error" : ""}`}>{toast.text}</div>}
           {items.length > shown && (
             <button className="btn small block" onClick={() => setShown((n) => n + PAGE)}>
               さらに表示({items.length - shown} 件)
@@ -171,7 +153,7 @@ function IdeaCard({ idea, onPlay }: { idea: NotionIdea; onPlay: () => void }) {
       <button
         className={`idea-card ${playable ? "playable" : ""}`}
         onClick={() => (playable ? onPlay() : openIdea(idea.url))}
-        title={playable ? `Spotify で「${song}」を${pos ? ` ${pos} から` : ""}再生` : "Notion で開く"}
+        title={playable ? `YT Music で「${song}」を${pos ? ` ${pos} から` : ""}再生` : "Notion で開く"}
       >
         <span className="idea-top">
           <span className="idea-title">{idea.title || "(無題)"}</span>

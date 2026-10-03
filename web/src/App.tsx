@@ -4,6 +4,8 @@ import { api, type Session } from "./lib/api";
 import { desktop, type PanePreset, type UpdateInfo } from "./lib/desktop";
 import { LibraryProvider } from "./lib/library";
 import { PrefsProvider } from "./lib/prefs";
+import { useToast } from "./lib/toast";
+import { useFold } from "./lib/fold";
 import { usePane } from "./lib/usePane";
 import { HomePage } from "./pages/HomePage";
 import { ClientsPage } from "./pages/ClientsPage";
@@ -41,6 +43,8 @@ function Shell() {
   const [overlay, setOverlay] = useState(false);
   const location = useLocation();
   const pane = usePane();
+  const note = useToast();
+  useFold();
   useEffect(() => setOverlay(false), [location.pathname, narrow]);
 
   useEffect(() => {
@@ -136,6 +140,11 @@ function Shell() {
               </Routes>
             </main>
           </div>
+          {note && (
+            <div key={note.id} className={`toast ${note.error ? "error" : ""}`} role="status">
+              {note.text}
+            </div>
+          )}
         </div>
     </LibraryProvider>
     </PrefsProvider>

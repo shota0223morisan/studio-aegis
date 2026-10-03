@@ -2,13 +2,13 @@ import { useState } from "react";
 import type { StoredFile } from "../../lib/api";
 import { analyzeAudio } from "../../lib/audio";
 import { desktop } from "../../lib/desktop";
-import { filled, SLOT_KEYS, spotifySearch, ytMusicSearch, type Flow, type RefSlot } from "../../lib/flow";
+import { filled, SLOT_KEYS, spotifySearch, type Flow, type RefSlot } from "../../lib/flow";
+import { playSong } from "../../lib/play";
 import { AutoTextarea } from "../AutoTextarea";
 
-export function openListen(where: "ytmusic" | "spotify", q: string) {
-  const url = where === "ytmusic" ? ytMusicSearch(q) : spotifySearch(q);
-  if (desktop) void desktop.openInPane(where, url);
-  else window.open(url, "_blank", "noreferrer");
+export function openSpotify(q: string) {
+  if (desktop) void desktop.openInPane("spotify", spotifySearch(q));
+  else window.open(spotifySearch(q), "_blank", "noreferrer");
 }
 
 /** REF SLOTS: the 3 reference songs (A/B/C, more can be added) and what to take from each. */
@@ -112,10 +112,10 @@ function Slot({ index, slot, audio, onChange }: { index: number; slot: RefSlot; 
         )}
         {q && (
           <>
-            <button className="chip-btn" onClick={() => openListen("ytmusic", q)} title="YouTube Music で聴く(アプリ内で音が出ます)">
-              YT Music
+            <button className="chip-btn" onClick={() => void playSong(slot.title, slot.artist)} title="YouTube Music で再生(アプリ内で音が出ます)">
+              ▶ 聴く
             </button>
-            <button className="chip-btn" onClick={() => openListen("spotify", q)}>
+            <button className="chip-btn" onClick={() => openSpotify(q)} title="Spotify で探す">
               Spotify
             </button>
           </>
