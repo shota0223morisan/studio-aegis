@@ -255,6 +255,9 @@ export const api = {
   notionIdeas: (refresh = false) => request<NotionIdeas>(`/api/notion/ideas${refresh ? "?refresh=1" : ""}`),
   notionMix: (refresh = false) => request<NotionPage>(`/api/notion/mix${refresh ? "?refresh=1" : ""}`),
 
+  mixChecklist: () => request<{ items: { id: string; text: string; origin?: string; deleted?: boolean }[] | null }>("/api/mix-checklist"),
+  setMixChecklist: (items: { id: string; text: string; origin?: string; deleted?: boolean }[]) => request("/api/mix-checklist", json("PUT", { items })),
+
   prefs: () => request<Prefs>("/api/prefs"),
   setPrefs: (patch: Partial<Prefs>) => request<Prefs>("/api/prefs", json("PUT", patch)),
 

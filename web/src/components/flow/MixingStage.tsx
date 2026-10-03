@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { NotionBlock, RichText } from "../../lib/api";
 import { desktop } from "../../lib/desktop";
-import { uid } from "../../lib/flow";
-import { useMixTips } from "../../lib/mixTips";
+import { useGate } from "../../lib/gate";
+import { useMixChecklist, useMixTips } from "../../lib/mixTips";
 import type { StageProps } from "./types";
 
 function openUrl(url: string) {
@@ -12,55 +12,10 @@ function openUrl(url: string) {
 
 /** STAGE 04 MIXING: the user's own Mixing Tips (Notion), with the pre-export checklist ticked per song. */
 export function MixingStage({ flow, update }: StageProps) {
-  const { page, items, fromNotion, refresh } = useMixTips();
-  const [extra, setExtra] = useState("");
-  const checks = flow.mixChecks ?? {};
-  const toggle = (label: string) => update((f) => ({ ...f, mixChecks: { ...f.mixChecks, [label]: !f.mixChecks?.[label] } }));
-  const parked = flow.parked ?? [];
-
+  const { page, refresh } = useMixTips();
   return (
     <>
-      <section className="card mix-checks">
-        <div className="section-head">
-          <span className="sec-index">01</span>
-          <h2 className="fx-en">PRE-EXPORT CHECK</h2>
-          <span className="sec-line" />
-        </div>
-        <ul className="check-list">
-          {items.map((label) => (
-            <li key={label} className={checks[label] ? "ok" : ""}>
-              <button className="gate-box" onClick={() => toggle(label)} aria-pressed={Boolean(checks[label])}>
-                {checks[label] ? "✓" : ""}
-              </button>
-              <span onClick={() => toggle(label)}>{label}</span>
-            </li>
-          ))}
-          {parked.map((p) => (
-            <li key={p.id} className={p.done ? "ok" : ""}>
-              <button
-                className="gate-box"
-                onClick={() => update((f) => ({ ...f, parked: (f.parked ?? []).map((x) => (x.id === p.id ? { ...x, done: !x.done } : x)) }))}
-                aria-pressed={Boolean(p.done)}
-              >
-                {p.done ? "✓" : ""}
-              </button>
-              <span>{p.text}</span>
-              <small className="park-to">保留していたこと</small>
-            </li>
-          ))}
-        </ul>
-        <form
-          className="inline-add"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!extra.trim()) return;
-            update((f) => ({ ...f, parked: [...(f.parked ?? []), { id: uid(), text: extra.trim(), from: 4 }] }));
-            setExtra("");
-          }}
-        >
-          <input value={extra} placeholder="＋ 項目" onChange={(e) => setExtra(e.target.value)} />
-        </form>
-      </section>
+      <PreExportCheck flow={flow} update={update} />
 
       <section className="card notion-page">
         <div className="section-head">
@@ -82,6 +37,162 @@ export function MixingStage({ flow, update }: StageProps) {
         {page?.blocks.length ? <Blocks blocks={page.blocks.filter((b) => b.type !== "to_do")} /> : null}
       </section>
     </>
+  );
+}
+
+/**
+ * The pre-export checklist: shared by every song (order / add / edit / delete / restore), ticked per
+ * song. Items parked in earlier stages follow, for this song only.
+ */
+function PreExportCheck({ flow, update }: Pick<StageProps, "flow" | "update">) {
+  const list = useMixChecklist();
+  const gate = useGate();
+  const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const checkOf = (id: string) => gate?.checks.find((c) => c.id === id);
+  const parked = flow.parked ?? [];
+
+  function finishEdit(id: string) {
+    const text = editText.trim();
+    if (text) void list.edit(id, text);
+    setEditing(null);
+  }
+
+  return (
+    <section className="card mix-checks">
+      <div className="section-head">
+        <span className="sec-index">01</span>
+        <h2 className="fx-en">PRE-EXPORT CHECK</h2>
+        <span className="sec-line" />
+      </div>
+      <ul className="check-list" onDragOver={(e) => dragId && e.preventDefault()}>
+        {list.items.map((it) => {
+          const c = checkOf(`mix-${it.id}`);
+          const ok = Boolean(c?.ok);
+          return (
+            <li
+              key={it.id}
+              className={`${ok ? "ok" : ""} ${dragId === it.id ? "dragging" : ""} ${overId === it.id && dragId !== it.id ? "drop-before" : ""}`}
+              draggable={editing !== it.id}
+              onDragStart={(e) => {
+                setDragId(it.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                if (!dragId) return;
+                e.preventDefault();
+                setOverId(it.id);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragId) list.move(dragId, it.id);
+                setDragId(null);
+                setOverId(null);
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+              }}
+            >
+              <span className="check-handle" title="ドラッグで並べ替え">
+                ⠿
+              </span>
+              <button className="gate-box" onClick={() => c && gate?.toggle(c)} aria-pressed={ok}>
+                {ok ? "✓" : ""}
+              </button>
+              {editing === it.id ? (
+                <input
+                  className="check-edit"
+                  autoFocus
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onBlur={() => finishEdit(it.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") finishEdit(it.id);
+                    if (e.key === "Escape") setEditing(null);
+                  }}
+                />
+              ) : (
+                <span className="check-text" onClick={() => c && gate?.toggle(c)} onDoubleClick={() => (setEditing(it.id), setEditText(it.text))}>
+                  {it.text}
+                </span>
+              )}
+              <span className="check-tools">
+                <button className="icon-btn" title="編集" onClick={() => (setEditing(it.id), setEditText(it.text))}>
+                  ✎
+                </button>
+                <button className="icon-btn danger" title="削除(下の「削除した項目」から戻せます)" onClick={() => void list.remove(it.id)}>
+                  ×
+                </button>
+              </span>
+            </li>
+          );
+        })}
+        {dragId && (
+          <li
+            className={`drop-end ${overId === "__end" ? "drop-before" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOverId("__end");
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              list.move(dragId, null);
+              setDragId(null);
+              setOverId(null);
+            }}
+          />
+        )}
+        {parked.map((p) => (
+          <li key={p.id} className={p.done ? "ok" : ""}>
+            <span className="check-handle" />
+            <button
+              className="gate-box"
+              onClick={() => update((f) => ({ ...f, parked: (f.parked ?? []).map((x) => (x.id === p.id ? { ...x, done: !x.done } : x)) }))}
+              aria-pressed={Boolean(p.done)}
+            >
+              {p.done ? "✓" : ""}
+            </button>
+            <span className="check-text">{p.text}</span>
+            <small className="park-to">この曲だけ</small>
+            <span className="check-tools">
+              <button className="icon-btn danger" title="消す" onClick={() => update((f) => ({ ...f, parked: (f.parked ?? []).filter((x) => x.id !== p.id) }))}>
+                ×
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <form
+        className="inline-add"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!draft.trim()) return;
+          void list.add(draft.trim());
+          setDraft("");
+        }}
+      >
+        <input value={draft} placeholder="＋ 項目" onChange={(e) => setDraft(e.target.value)} />
+      </form>
+      {list.deleted.length > 0 && (
+        <details className="check-deleted">
+          <summary>削除した項目({list.deleted.length})</summary>
+          <ul>
+            {list.deleted.map((it) => (
+              <li key={it.id}>
+                <span>{it.text}</span>
+                <button className="btn small ghost" onClick={() => void list.restore(it.id)}>
+                  戻す
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
 

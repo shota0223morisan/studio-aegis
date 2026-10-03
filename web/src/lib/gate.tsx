@@ -13,6 +13,8 @@ export function GateProvider({ checks, toggle, children }: GateCtx & { children:
   return <Ctx.Provider value={{ checks, toggle }}>{children}</Ctx.Provider>;
 }
 
+export const useGate = () => useContext(Ctx);
+
 /** Checkboxes in a card's header for the gate items that card covers. */
 export function CardChecks({ ids }: { ids: string[] }) {
   const ctx = useContext(Ctx);

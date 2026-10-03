@@ -7,7 +7,7 @@ import { desktop } from "../lib/desktop";
 import { stageChecks, stageMeta, stopTimer, type Flow } from "../lib/flow";
 import { formatDate } from "../lib/format";
 import { useLibrary } from "../lib/library";
-import { useMixTips } from "../lib/mixTips";
+import { useMixChecklist, useMixTips } from "../lib/mixTips";
 import { GateProvider } from "../lib/gate";
 import { usePrefs } from "../lib/prefs";
 import { saveLabel, useAutosave } from "../lib/useAutosave";
@@ -51,7 +51,8 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
   const [flash, setFlash] = useState<string | null>(null);
   const flowRef = useRef<Flow>({});
   const flowSave = useAutosave((f: Flow) => api.updateProject(id, { flow: f }), 700);
-  const mix = useMixTips(Boolean(project && project.stage >= 4));
+  useMixTips(Boolean(project && project.stage >= 4));
+  const mix = useMixChecklist(Boolean(project && project.stage >= 4));
 
   useEffect(() => {
     api
@@ -140,7 +141,13 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
       if (c.id.startsWith("park-")) {
         const id = c.id.slice(5);
         update((f) => ({ ...f, parked: (f.parked ?? []).map((p) => (p.id === id ? { ...p, done: !p.done } : p)) }));
-      } else update((f) => ({ ...f, mixChecks: { ...f.mixChecks, [c.label]: !f.mixChecks?.[c.label] } }));
+      } else {
+        const id = c.id.replace(/^mix-/, "");
+        update((f) => {
+          const { [c.label]: legacy, ...rest } = f.mixChecks ?? {};
+          return { ...f, mixChecks: { ...rest, [id]: !(f.mixChecks?.[id] ?? legacy) } };
+        });
+      }
       return;
     }
     if (view === 2 && (c.id === "drums" || c.id === "bass" || c.id === "harmony")) {

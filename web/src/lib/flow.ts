@@ -127,7 +127,7 @@ export const filled = (r?: RefSlot) => Boolean(r && (r.title?.trim() || r.artist
  * What has to be done before leaving a stage. Every item clears either from what's written in the
  * app (auto) or by ticking it by hand — decided in the DAW counts too.
  */
-export function stageChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: string[]): Check[] {
+export function stageChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: { id: string; text: string }[]): Check[] {
   const list = autoChecks(n, project, flow, mixItems);
   if (n === 4) return list; // MIXING items are ticked by hand anyway
   return list.map((c) => {
@@ -137,7 +137,7 @@ export function stageChecks(n: number, project: ProjectDetail, flow: Flow, mixIt
   });
 }
 
-function autoChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: string[]): Check[] {
+function autoChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: { id: string; text: string }[]): Check[] {
   const refs = (flow.refs ?? []).filter(filled);
   switch (n) {
     case 1: {
@@ -177,7 +177,8 @@ function autoChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: str
     }
     case 4: {
       const checks = flow.mixChecks ?? {};
-      const items: Check[] = mixItems.map((label, i) => ({ id: `mix-${i}`, label, ok: Boolean(checks[label]) }));
+      // Ticks are keyed by the item's id (older songs: by its text).
+      const items: Check[] = mixItems.map((it) => ({ id: `mix-${it.id}`, label: it.text, ok: Boolean(checks[it.id] ?? checks[it.text]) }));
       for (const p of flow.parked ?? []) items.push({ id: `park-${p.id}`, label: p.text, ok: Boolean(p.done), sub: `${stageMeta(p.from).en} で保留` });
       return items;
     }

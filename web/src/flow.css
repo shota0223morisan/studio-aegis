@@ -453,3 +453,22 @@ input.midi-name:hover { border-color: var(--border); }
 .card-check.ok { color: var(--text); border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
 .card-check.ok .card-check-box { background: color-mix(in srgb, var(--ok) 20%, transparent); border-color: var(--ok); }
 .card-check.auto { cursor: default; }
+
+/* ---- Pre-export checklist: reorder / edit / delete / restore ---- */
+.check-list li { position: relative; }
+.check-list .check-handle { width: 14px; flex: none; color: var(--muted); cursor: grab; opacity: 0; font-size: 13px; }
+.check-list li:hover .check-handle { opacity: 0.7; }
+.check-list .check-text { flex: 1; cursor: pointer; }
+.check-list li.ok .check-text { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ok) 60%, transparent); }
+.check-list .check-edit { flex: 1; padding: 3px 8px; font-size: 13px; }
+.check-list .check-tools { flex: none; display: inline-flex; gap: 1px; opacity: 0; transition: opacity 0.12s; }
+.check-list li:hover .check-tools, .check-list .check-tools:focus-within { opacity: 1; }
+.check-list .check-tools .icon-btn { width: 24px; height: 24px; font-size: 12px; }
+.check-list li.dragging { opacity: 0.4; }
+.check-list li.drop-before::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 2px; background: var(--accent); border-radius: 2px; }
+.check-list li.drop-end { height: 18px; border: 0; padding: 0; }
+.check-deleted { margin-top: 10px; font-size: 12.5px; }
+.check-deleted summary { cursor: pointer; color: var(--muted); }
+.check-deleted ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.check-deleted li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; background: var(--surface-2); }
+.check-deleted li span { flex: 1; color: var(--muted); text-decoration: line-through; }

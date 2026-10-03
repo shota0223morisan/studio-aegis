@@ -134,6 +134,23 @@ function createFlowRouter(store) {
     res.json(next);
   });
 
+  // ---- the pre-export checklist (shared by every song; ticks are per song) ----
+  const MIX_LIST_KEY = "mixChecklist";
+  router.get("/mix-checklist", (_req, res) => res.json({ items: store.kvGet(MIX_LIST_KEY) ?? null }));
+  router.put("/mix-checklist", (req, res) => {
+    const items = (Array.isArray(req.body?.items) ? req.body.items : [])
+      .slice(0, 300)
+      .map((it) => ({
+        id: str(it?.id, 100) ?? "",
+        text: str(it?.text, 500)?.trim() ?? "",
+        ...(typeof it?.origin === "string" ? { origin: it.origin.slice(0, 500) } : {}),
+        ...(it?.deleted ? { deleted: true } : {}),
+      }))
+      .filter((it) => it.id && it.text);
+    store.kvSet(MIX_LIST_KEY, items);
+    res.json({ items });
+  });
+
   // ---- AI ----
   router.get("/ai/status", async (_req, res) => res.json(await ai.status()));
 
