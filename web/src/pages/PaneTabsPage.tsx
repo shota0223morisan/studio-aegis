@@ -1,23 +1,28 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { desktop, type PaneTab } from "../lib/desktop";
+import { desktop, type PaneSide, type PaneTab } from "../lib/desktop";
 import { usePane } from "../lib/usePane";
 
-const TABS: { id: PaneTab; label: string; icon: string; key: string }[] = [
-  { id: "spotify", label: "Spotify", icon: "●", key: "⌘1" },
-  { id: "amazon", label: "Amazon", icon: "♫", key: "⌘2" },
-  { id: "splice", label: "Splice", icon: "◆", key: "⌘3" },
-  { id: "web", label: "Web", icon: "◎", key: "⌘4" },
+export const PANE_TABS: { id: PaneTab; label: string; icon: string }[] = [
+  { id: "splice", label: "Splice", icon: "◆" },
+  { id: "suno", label: "Suno", icon: "✦" },
+  { id: "web", label: "Web", icon: "◎" },
+  { id: "amazon", label: "Amazon", icon: "♫" },
+  { id: "ytmusic", label: "YT Music", icon: "▶" },
+  { id: "spotify", label: "Spotify", icon: "●" },
 ];
 
 const SPOTIFY_HINT =
-  "左の Spotify では音が出ません(アプリ内蔵ブラウザに Spotify の再生用 DRM がないため)。\n\n" +
+  "この Spotify では音が出ません(アプリ内蔵ブラウザに Spotify の再生用 DRM がないため)。\n\n" +
   "検索やプレイリストの操作はここで、音は Mac の Spotify アプリから鳴らします。" +
-  "画面下の「デバイスに接続」で Mac の Spotify を選ぶと、ここがリモコンになります。";
+  "画面下の「デバイスに接続」で Mac の Spotify を選ぶと、ここがリモコンになります。\n\n" +
+  "アプリ内で音を出したいときは YT Music タブを使ってください。";
 
-/** Tab bar above the left pane (rendered in its own small web view by the desktop app). */
+/** Tab bar above a side pane (rendered in its own small web view by the desktop app: /pane?side=left|right). */
 export function PaneTabsPage() {
-  const pane = usePane();
-  const page = pane ? pane[pane.tab] : null;
+  const side: PaneSide = new URLSearchParams(window.location.search).get("side") === "right" ? "right" : "left";
+  const state = usePane();
+  const pane = state?.[side];
+  const page = pane?.tab ? state?.pages[pane.tab] : null;
   const [address, setAddress] = useState("");
   const [editing, setEditing] = useState(false);
 
@@ -25,10 +30,11 @@ export function PaneTabsPage() {
     document.body.classList.add("pane-tabs-body");
   }, []);
   useEffect(() => {
-    if (!editing) setAddress(pane?.web?.url ?? "");
-  }, [pane?.web?.url, editing]);
+    if (!editing) setAddress(state?.pages.web?.url ?? "");
+  }, [state?.pages.web?.url, editing]);
 
-  if (!desktop) return null;
+  if (!desktop || !state) return null;
+  const tabs = PANE_TABS.filter((t) => state.sides[t.id] === side);
 
   function go(e: FormEvent) {
     e.preventDefault();
@@ -37,35 +43,49 @@ export function PaneTabsPage() {
     (document.activeElement as HTMLElement | null)?.blur();
   }
 
+  const fold = (
+    <button className="icon-btn" onClick={() => void desktop!.togglePane(side, false)} title={side === "left" ? "左パネルを畳む(⌘⇧L)" : "右パネルを畳む(⌘⇧R)"}>
+      {side === "left" ? "⟨" : "⟩"}
+    </button>
+  );
+
   return (
-    <div className="pane-tabs">
+    <div className={`pane-tabs side-${side} ${tabs.length > 3 ? "many" : ""}`}>
       <div className="pane-row">
+        {side === "right" && fold}
         <div className="pane-tab-list" role="tablist">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={pane?.tab === t.id}
-              className={`pane-tab ${t.id} ${pane?.tab === t.id ? "on" : ""}`}
-              onClick={() => void desktop!.setPaneTab(t.id)}
-              title={`${t.label}(${t.key})`}
-            >
-              <span className="pane-tab-icon">{t.icon}</span>
-              <span className="pane-tab-label">{t.label}</span>
-            </button>
-          ))}
+          {tabs.map((t) => {
+            const idx = PANE_TABS.findIndex((x) => x.id === t.id) + 1;
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={pane?.tab === t.id}
+                className={`pane-tab ${t.id} ${pane?.tab === t.id ? "on" : ""}`}
+                onClick={() => void desktop!.setPaneTab(t.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  void desktop!.tabMenu(t.id);
+                }}
+                title={`${t.label}(⌘${idx}) — 右クリックで反対側へ移動`}
+              >
+                <span className="pane-tab-icon">{t.icon}</span>
+                <span className="pane-tab-label">{t.label}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="pane-tools">
-          <button className="icon-btn" disabled={!page?.canGoBack} onClick={() => void desktop!.paneNav("back")} title="戻る">
+          <button className="icon-btn" disabled={!page?.canGoBack} onClick={() => void desktop!.paneNav(side, "back")} title="戻る">
             ←
           </button>
-          <button className="icon-btn" disabled={!page?.canGoForward} onClick={() => void desktop!.paneNav("forward")} title="進む">
+          <button className="icon-btn" disabled={!page?.canGoForward} onClick={() => void desktop!.paneNav(side, "forward")} title="進む">
             →
           </button>
-          <button className="icon-btn" onClick={() => void desktop!.paneNav("reload")} title="再読み込み">
+          <button className="icon-btn" onClick={() => void desktop!.paneNav(side, "reload")} title="再読み込み">
             {page?.loading ? "…" : "⟳"}
           </button>
-          <button className="icon-btn" onClick={() => void desktop!.paneNav("home")} title="ホーム">
+          <button className="icon-btn" onClick={() => void desktop!.paneNav(side, "home")} title="ホーム">
             ⌂
           </button>
           {pane?.tab === "spotify" && (
@@ -73,9 +93,15 @@ export function PaneTabsPage() {
               ?
             </button>
           )}
-          <button className="icon-btn" onClick={() => void desktop!.togglePane(false)} title="左パネルを隠す(⌘⇧L)">
-            ✕
+          {pane?.tab && (
+            <button className="icon-btn" onClick={() => void desktop!.moveTab(pane.tab!)} title="このタブを反対側のパネルへ">
+              {side === "left" ? "⇥" : "⇤"}
+            </button>
+          )}
+          <button className="icon-btn" onClick={() => void desktop!.swapPanes()} title="左右を入れ替える(⌘⇧S)">
+            ⇄
           </button>
+          {side === "left" && fold}
         </div>
       </div>
       {pane?.tab === "web" && (
@@ -92,10 +118,10 @@ export function PaneTabsPage() {
             onChange={(e) => setAddress(e.target.value)}
             spellCheck={false}
           />
-          <button type="button" className="btn small ghost" onClick={() => void desktop!.paneNav("chrome")} title="今のページを Chrome で開く">
+          <button type="button" className="btn small ghost" onClick={() => void desktop!.paneNav(side, "chrome")} title="今のページを Chrome で開く">
             Chrome ↗
           </button>
-          <button type="button" className="btn small ghost" onClick={() => void desktop!.paneNav("safari")} title="今のページを Safari で開く">
+          <button type="button" className="btn small ghost" onClick={() => void desktop!.paneNav(side, "safari")} title="今のページを Safari で開く">
             Safari ↗
           </button>
         </form>

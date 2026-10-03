@@ -10,16 +10,24 @@ function subscribe(channel, cb) {
 contextBridge.exposeInMainWorld("aegisDesktop", {
   isDesktop: true,
   platform: process.platform,
-  /** Left pane (Spotify / Splice web views). */
+  /** Side panes (left / right) with site tabs. */
   getPaneState: () => ipcRenderer.invoke("pane:get"),
   setPaneTab: (tab) => ipcRenderer.invoke("pane:setTab", tab),
-  togglePane: (open) => ipcRenderer.invoke("pane:toggle", open),
+  togglePane: (side, open) => ipcRenderer.invoke("pane:toggle", side, open),
   openInPane: (tab, url) => ipcRenderer.invoke("pane:open", tab, url),
-  paneNav: (action) => ipcRenderer.invoke("pane:nav", action),
+  paneNav: (side, action) => ipcRenderer.invoke("pane:nav", side, action),
   webGo: (input) => ipcRenderer.invoke("pane:webGo", input),
-  paneDrag: (screenX) => ipcRenderer.send("pane:drag", screenX),
+  moveTab: (tab) => ipcRenderer.invoke("pane:moveTab", tab),
+  swapPanes: () => ipcRenderer.invoke("pane:swap"),
+  applyPreset: (name) => ipcRenderer.invoke("pane:preset", name),
+  tabMenu: (tab) => ipcRenderer.invoke("pane:tabMenu", tab),
+  nowPlaying: () => ipcRenderer.invoke("pane:nowPlaying"),
+  paneDrag: (side, screenX) => ipcRenderer.send("pane:drag", side, screenX),
   paneDragEnd: () => ipcRenderer.send("pane:dragEnd"),
   onPaneState: (cb) => subscribe("pane-state", cb),
+  /** Start dragging a MIDI clip's file out of the app (e.g. into Logic / Ableton). */
+  dragMidi: (clipId) => ipcRenderer.send("app:dragMidi", clipId),
+  copyText: (text) => ipcRenderer.invoke("app:copyText", text),
   getInfo: () => ipcRenderer.invoke("app:info"),
   openDataFolder: () => ipcRenderer.invoke("app:openDataFolder"),
   exportBackup: () => ipcRenderer.invoke("app:exportBackup"),

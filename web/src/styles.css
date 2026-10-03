@@ -182,6 +182,7 @@ select.small { padding: 4px 6px; font-size: 12px; }
 
 /* Drag handle between the desktop app's left pane and this UI */
 .pane-divider { position: fixed; left: 0; top: 0; bottom: 0; width: 6px; z-index: 40; cursor: col-resize; }
+.pane-divider.right { left: auto; right: 0; }
 .pane-divider:hover, body.resizing .pane-divider { background: color-mix(in srgb, var(--accent) 45%, transparent); }
 body.resizing { cursor: col-resize; user-select: none; }
 
@@ -449,7 +450,14 @@ body.pane-tabs-body { background-image: none; overflow: hidden; }
 .pane-tab.amazon .pane-tab-icon { color: #ff9900; }
 .pane-tab.splice .pane-tab-icon { color: #8b5cf6; }
 .pane-tab.web .pane-tab-icon { color: var(--accent-2); }
-@media (max-width: 470px) { .pane-tab:not(.on) .pane-tab-label { display: none; } }
+.pane-tab.suno .pane-tab-icon { color: #f5c518; }
+.pane-tab.ytmusic .pane-tab-icon { color: #ff0033; }
+.pane-tabs.side-right { border-right: 0; border-left: 1px solid var(--border); }
+.pane-tabs.side-right .pane-row { justify-content: flex-start; }
+.pane-tabs.side-right .pane-tools { margin-left: auto; }
+@media (max-width: 500px) { .pane-tabs.many .pane-tab:not(.on) .pane-tab-label { display: none; } }
+@media (max-width: 330px) { .pane-tab:not(.on) .pane-tab-label { display: none; } }
+@media (max-width: 560px) { .pane-tab { padding: 5px 7px; gap: 4px; } .pane-tools .icon-btn { width: 23px; } }
 .pane-tools { display: flex; gap: 1px; flex: none; }
 .pane-tools .icon-btn { width: 26px; height: 26px; font-size: 13px; }
 .address-row { border-top: 1px solid var(--border); gap: 6px; }

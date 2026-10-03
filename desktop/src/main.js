@@ -2,9 +2,9 @@
 //
 // Everything runs on this Mac: a small local server (127.0.0.1 only) keeps projects in SQLite and
 // files on disk under ~/Library/Application Support/Studio Aegis/data, and serves the UI.
-// The left pane shows Spotify / Amazon MP3 / Splice / a Web browser as tabs (splice.com refuses iframes, but a separate web
-// view is a normal top-level page); the right side is the Studio Aegis UI.
-const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, dialog, session } = require("electron");
+// The Studio Aegis UI sits in the middle; the side panes show sites as tabs — Splice / Suno / Web / Amazon MP3 on the left and
+// YouTube Music / Spotify on the right by default (splice.com refuses iframes, but a separate web view is a normal top-level page).
+const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, nativeImage, dialog, session, clipboard } = require("electron");
 const { execFile } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -18,7 +18,7 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PRELOAD = path.join(__dirname, "preload.js");
 const SPLICE_HOST = /(^|\.)splice\.com$/;
 // OAuth / login pages that must stay inside the window so the redirect back to the app works.
-const AUTH_HOSTS = /(^|\.)(spotify\.com|google\.com|apple\.com|facebook\.com|splice\.com)$/;
+const AUTH_HOSTS = /(^|\.)(spotify\.com|google\.com|apple\.com|facebook\.com|splice\.com|discord\.com|clerk\.com|microsoftonline\.com)$/;
 
 const dataDir = () => path.join(app.getPath("userData"), "data");
 const webDir = () => (app.isPackaged ? path.join(process.resourcesPath, "web") : path.join(__dirname, "../../web/dist"));
@@ -52,7 +52,7 @@ function readState() {
 function saveState() {
   if (!win) return;
   try {
-    fs.writeFileSync(statePath(), JSON.stringify({ bounds: win.getBounds(), pane: { open: pane.open, tab: pane.tab, ratio: pane.ratio } }));
+    fs.writeFileSync(statePath(), JSON.stringify({ bounds: win.getBounds(), panes, sides }));
   } catch {
     /* not critical */
   }
@@ -60,74 +60,103 @@ function saveState() {
 
 // ---- Window & views --------------------------------------------------------
 //
-//  ┌──────────── left pane ────────────┬──────────── app ────────────┐
-//  │ tabsView  [Spotify][Splice] ← → ⟳ │                             │
-//  ├───────────────────────────────────┤  appView (Studio Aegis UI)  │
-//  │ spotify / splice web view         │                             │
-//  └───────────────────────────────────┴─────────────────────────────┘
+//  ┌── left pane ──────────┬────────── app ───────────┬── right pane ──────────┐
+//  │ tabs [Splice][Suno]…  │                          │ tabs [YT Music][Spotify]│
+//  ├───────────────────────┤  appView (Studio Aegis)  ├────────────────────────┤
+//  │ site web view         │                          │ site web view          │
+//  └───────────────────────┴──────────────────────────┴────────────────────────┘
+//
+// Every site tab lives on one side (movable); each side shows one tab at a time and can be
+// collapsed. "Swap" mirrors the two sides.
 
 const TABS_H = 44;
 const TABS_H_WEB = 84; // the Web tab adds an address bar row
-const PANE_MIN = 380;
-const APP_MIN = 520;
+const PANE_MIN = 260;
+const APP_MIN = 600;
 // Sites that refuse "Electron" in the user agent get a plain Chrome one.
 const CHROME_UA = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 
 const TABS = {
-  spotify: { home: "https://open.spotify.com/", host: /(^|\.)spotify\.com$/, partition: "persist:spotify" },
-  // Amazon's DRM-free MP3 download store.
-  amazon: { home: "https://www.amazon.co.jp/b?node=2128134051", host: /(^|\.)amazon\.(co\.jp|com)$/, partition: "persist:amazon" },
   splice: { home: "https://splice.com/sounds", host: SPLICE_HOST, partition: "persist:splice" },
+  // Waveform generation (in-app generation isn't possible, so Suno's own site).
+  suno: { home: "https://suno.com/create", host: /(^|\.)suno\.(com|ai)$/, partition: "persist:suno" },
   // General-purpose browser for research.
   web: { home: "https://www.google.com/", host: /./, partition: "persist:web" },
+  // Amazon's DRM-free MP3 download store.
+  amazon: { home: "https://www.amazon.co.jp/b?node=2128134051", host: /(^|\.)amazon\.(co\.jp|com)$/, partition: "persist:amazon" },
+  // Plays inside the app (no DRM needed, unlike Spotify).
+  ytmusic: { home: "https://music.youtube.com/", host: /(^|\.)(youtube\.com|youtu\.be)$/, partition: "persist:ytmusic" },
+  spotify: { home: "https://open.spotify.com/", host: /(^|\.)spotify\.com$/, partition: "persist:spotify" },
 };
+const TAB_ORDER = Object.keys(TABS);
+const LISTEN_TABS = new Set(["ytmusic", "spotify"]);
+const DEFAULT_SIDES = { splice: "left", suno: "left", web: "left", amazon: "left", ytmusic: "right", spotify: "right" };
+const SIDES = ["left", "right"];
 
 /** Which tab a URL belongs to (anything unknown goes to the Web tab). */
 function tabFor(url) {
   const host = hostOf(url);
   if (host === "open.spotify.com") return "spotify";
-  if (TABS.amazon.host.test(host)) return "amazon";
-  if (TABS.splice.host.test(host)) return "splice";
+  if (host === "music.youtube.com") return "ytmusic";
+  for (const name of ["amazon", "splice", "suno"]) if (TABS[name].host.test(host)) return name;
   return "web";
 }
 
-const tabsHeight = () => (pane.tab === "web" ? TABS_H_WEB : TABS_H);
-
 let win = null;
 let appView = null;
-let tabsView = null;
-const content = { spotify: null, amazon: null, splice: null, web: null };
-const pane = { open: true, tab: "spotify", ratio: 0.42 };
+const tabsViews = { left: null, right: null };
+const content = Object.fromEntries(TAB_ORDER.map((k) => [k, null]));
+const panes = {
+  left: { open: true, tab: "splice", ratio: 0.27 },
+  right: { open: true, tab: "ytmusic", ratio: 0.25 },
+};
+let sides = { ...DEFAULT_SIDES };
 
-function paneWidth(width) {
-  if (!pane.open) return 0;
-  return Math.max(PANE_MIN, Math.min(width - APP_MIN, Math.round(width * pane.ratio)));
+const tabsOn = (side) => TAB_ORDER.filter((t) => sides[t] === side);
+const tabsHeight = (side) => (panes[side].tab === "web" ? TABS_H_WEB : TABS_H);
+
+/** Widths of the two panes; they shrink together when the app would get too narrow. */
+function paneWidths(width) {
+  const w = {};
+  for (const side of SIDES) w[side] = panes[side].open ? Math.max(PANE_MIN, Math.round(width * panes[side].ratio)) : 0;
+  const room = width - APP_MIN;
+  const total = w.left + w.right;
+  if (total > room && total > 0) {
+    const scale = Math.max(0, room) / total;
+    for (const side of SIDES) if (w[side]) w[side] = Math.max(200, Math.round(w[side] * scale));
+  }
+  return w;
 }
 
 function layout() {
   if (!win || !appView) return;
   const { width, height } = win.getContentBounds();
-  const left = paneWidth(width);
-  appView.setBounds({ x: left, y: 0, width: width - left, height });
-  const top = tabsHeight();
-  if (tabsView) tabsView.setBounds({ x: 0, y: 0, width: left, height: pane.open ? top : 0 });
+  const w = paneWidths(width);
+  const x = { left: 0, right: width - w.right };
+  appView.setBounds({ x: w.left, y: 0, width: Math.max(0, width - w.left - w.right), height });
+  for (const side of SIDES) {
+    const top = tabsHeight(side);
+    tabsViews[side]?.setBounds(panes[side].open ? { x: x[side], y: 0, width: w[side], height: top } : { x: 0, y: 0, width: 0, height: 0 });
+  }
   for (const [name, view] of Object.entries(content)) {
     if (!view) continue;
-    const visible = pane.open && name === pane.tab;
-    view.setBounds(visible ? { x: 0, y: top, width: left, height: height - top } : { x: 0, y: 0, width: 0, height: 0 });
+    const side = sides[name];
+    const visible = panes[side].open && panes[side].tab === name;
+    const top = tabsHeight(side);
+    view.setBounds(visible ? { x: x[side], y: top, width: w[side], height: height - top } : { x: 0, y: 0, width: 0, height: 0 });
     view.setVisible(visible);
   }
 }
 
 function paneState() {
-  const info = {};
+  const pages = {};
   for (const [name, view] of Object.entries(content)) {
     const wc = view?.webContents;
-    info[name] = wc
+    pages[name] = wc
       ? { url: wc.getURL(), title: wc.getTitle(), loading: wc.isLoading(), canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward() }
       : null;
   }
-  return { open: pane.open, tab: pane.tab, ratio: pane.ratio, ...info };
+  return { left: { ...panes.left }, right: { ...panes.right }, sides: { ...sides }, pages };
 }
 
 let broadcastTimer = null;
@@ -136,8 +165,17 @@ function broadcast() {
   broadcastTimer = setTimeout(() => {
     const state = paneState();
     appView?.webContents.send("pane-state", state);
-    tabsView?.webContents.send("pane-state", state);
+    for (const side of SIDES) tabsViews[side]?.webContents.send("pane-state", state);
   }, 30);
+}
+
+/** Apply a change to the panes: relayout, tell the UIs, update the menu, remember it. */
+function commit() {
+  for (const side of SIDES) if (panes[side].open && panes[side].tab) ensureContent(panes[side].tab);
+  layout();
+  broadcast();
+  buildMenu();
+  saveState();
 }
 
 function addContextMenu(contents) {
@@ -152,7 +190,7 @@ function addContextMenu(contents) {
 
 const loadApp = () => void appView?.webContents.loadURL(`${ORIGIN}/`);
 
-/** Route a link from the app into the matching left-pane tab (unknown sites → Web tab). */
+/** Route a link from the app into the matching pane tab (unknown sites → Web tab). */
 function routeUrl(url) {
   if (!/^https?:\/\//.test(url)) return;
   openInPane(tabFor(url), url);
@@ -162,7 +200,7 @@ function createAppView() {
   const view = new WebContentsView({ webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true } });
   view.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#111214" : "#f6f5f2");
   const contents = view.webContents;
-  // Stay inside the app for its own pages and the Spotify login round-trip; everything else → pane / browser.
+  // Stay inside the app for its own pages; everything else → pane / browser.
   // (Also stops a file dropped outside a drop zone from replacing the page.)
   contents.on("will-navigate", (e, url) => {
     if (url.startsWith(`${ORIGIN}/`) || AUTH_HOSTS.test(hostOf(url))) return;
@@ -177,12 +215,12 @@ function createAppView() {
   return view;
 }
 
-function createTabsView() {
+function createTabsView(side) {
   const view = new WebContentsView({ webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true } });
   view.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#111214" : "#f6f5f2");
   view.webContents.on("will-navigate", (e) => e.preventDefault());
   view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  void view.webContents.loadURL(`${ORIGIN}/pane`);
+  void view.webContents.loadURL(`${ORIGIN}/pane?side=${side}`);
   return view;
 }
 
@@ -199,7 +237,7 @@ function ensureContent(name) {
     e.preventDefault();
     routeUrl(url);
   });
-  // Login popups (Google / Apple / Facebook) open as real windows; other links stay in the pane.
+  // Login popups (Google / Apple / Facebook / Discord) open as real windows; other links stay in the panes.
   contents.setWindowOpenHandler(({ url }) => {
     const host = hostOf(url);
     if (name !== "web" && AUTH_HOSTS.test(host) && !tab.host.test(host)) return { action: "allow" };
@@ -217,44 +255,124 @@ function ensureContent(name) {
   return view;
 }
 
-function setTab(name, open = true) {
+/** Show a tab (on whichever side it lives) and open that side. */
+function setTab(name) {
   if (!TABS[name]) return;
-  pane.tab = name;
-  pane.open = open || pane.open;
-  if (pane.open) ensureContent(name);
-  layout();
-  broadcast();
-  buildMenu();
-  saveState();
+  const side = sides[name];
+  panes[side].tab = name;
+  panes[side].open = true;
+  commit();
 }
 
-function togglePane(open = !pane.open) {
-  pane.open = open;
-  if (pane.open) ensureContent(pane.tab);
-  layout();
-  broadcast();
-  buildMenu();
-  saveState();
+function togglePane(side, open = !panes[side]?.open) {
+  if (!panes[side]) return;
+  panes[side].open = open;
+  if (open && !tabsOn(side).includes(panes[side].tab)) panes[side].tab = tabsOn(side)[0] ?? null;
+  if (open && !panes[side].tab) panes[side].open = false; // nothing to show there
+  commit();
+}
+
+/** Move one tab to the other side (and show it there). */
+function moveTab(name) {
+  if (!TABS[name]) return;
+  const from = sides[name];
+  const to = from === "left" ? "right" : "left";
+  sides[name] = to;
+  if (panes[from].tab === name) {
+    panes[from].tab = tabsOn(from)[0] ?? null;
+    if (!panes[from].tab) panes[from].open = false;
+  }
+  panes[to].tab = name;
+  panes[to].open = true;
+  commit();
+}
+
+/** Mirror the two panes (tabs, widths, open state). */
+function swapSides() {
+  for (const t of TAB_ORDER) sides[t] = sides[t] === "left" ? "right" : "left";
+  const left = panes.left;
+  panes.left = panes.right;
+  panes.right = left;
+  commit();
+}
+
+/**
+ * Layout presets, also applied automatically when a song moves to another stage.
+ * listen: the listening side wide, the other folded · build: Splice + a small player
+ * polish: a narrower player only · focus: both folded
+ */
+function applyPreset(name) {
+  const listenSide = LISTEN_TABS.has(panes.right.tab) && sides[panes.right.tab] === "right" ? "right" : sides.ytmusic;
+  const other = listenSide === "left" ? "right" : "left";
+  const listenTab = LISTEN_TABS.has(panes[listenSide].tab) ? panes[listenSide].tab : "ytmusic";
+  const show = (side, tab, ratio) => {
+    if (sides[tab] !== side) return;
+    Object.assign(panes[side], { open: true, tab, ratio });
+  };
+  if (name === "listen") {
+    show(listenSide, listenTab, 0.34);
+    panes[other].open = false;
+  } else if (name === "build") {
+    const buildSide = sides.splice;
+    if (buildSide !== listenSide) {
+      show(buildSide, "splice", 0.28);
+      show(listenSide, listenTab, 0.22);
+    } else show(buildSide, "splice", 0.3);
+  } else if (name === "polish") {
+    show(listenSide, listenTab, 0.26);
+    panes[other].open = false;
+  } else if (name === "focus") {
+    panes.left.open = false;
+    panes.right.open = false;
+  } else return;
+  commit();
 }
 
 function openInPane(name, url) {
   const tab = TABS[name];
   if (!tab) return;
   if (url && !tab.host.test(hostOf(url))) return routeUrl(url);
-  setTab(name, true);
+  setTab(name);
   const view = content[name];
   if (url && view && view.webContents.getURL() !== url) void view.webContents.loadURL(url);
 }
 
-function paneNav(action) {
-  const wc = content[pane.tab]?.webContents;
+function paneNav(side, action) {
+  const name = panes[side]?.tab;
+  const wc = name && content[name]?.webContents;
   if (!wc) return;
   if (action === "back") wc.navigationHistory.goBack();
   else if (action === "forward") wc.navigationHistory.goForward();
   else if (action === "reload") wc.reload();
-  else if (action === "home") void wc.loadURL(TABS[pane.tab].home);
+  else if (action === "home") void wc.loadURL(TABS[name].home);
   else if (action === "external") openExternal(wc.getURL());
   else if (action === "chrome" || action === "safari") openInBrowser(action, wc.getURL());
+}
+
+/** What's playing in YouTube Music / Spotify (for "add to references"). */
+async function nowPlaying() {
+  const order = [panes.right.tab, panes.left.tab, "ytmusic", "spotify"].filter((t) => LISTEN_TABS.has(t));
+  for (const name of [...new Set(order)]) {
+    const wc = content[name]?.webContents;
+    if (!wc) continue;
+    let meta = null;
+    try {
+      meta = await wc.executeJavaScript(
+        "(() => { const m = navigator.mediaSession && navigator.mediaSession.metadata; return m && m.title ? { title: m.title, artist: m.artist || '', album: m.album || '' } : null; })()",
+        true,
+      );
+    } catch {
+      /* page not ready */
+    }
+    if (!meta) {
+      // Fall back to the page title ("Song • Artist" / "Song - Artist - YouTube Music").
+      const t = wc.getTitle().replace(/\s*[-|]\s*(YouTube Music|Spotify.*)$/i, "").trim();
+      const [title, artist] = t.split(/\s+[•·]\s+|\s+-\s+/);
+      if (title && !/^(YouTube Music|Spotify|ホーム|Home)/i.test(title)) meta = { title, artist: artist ?? "", album: "" };
+    }
+    if (meta) return { ...meta, url: wc.getURL(), source: name };
+  }
+  return null;
 }
 
 /** Open a page in Chrome / Safari specifically (falls back to the default browser). */
@@ -281,33 +399,49 @@ function webGo(input) {
   openInPane("web", url);
 }
 
+function restorePanes(saved) {
+  if (saved.sides && typeof saved.sides === "object") {
+    for (const t of TAB_ORDER) if (SIDES.includes(saved.sides[t])) sides[t] = saved.sides[t];
+  }
+  for (const side of SIDES) {
+    const p = saved.panes?.[side];
+    if (!p) continue;
+    if (typeof p.open === "boolean") panes[side].open = p.open;
+    if (typeof p.ratio === "number") panes[side].ratio = Math.max(0.12, Math.min(0.5, p.ratio));
+    if (TABS[p.tab] && sides[p.tab] === side) panes[side].tab = p.tab;
+  }
+  for (const side of SIDES) if (!tabsOn(side).includes(panes[side].tab)) panes[side].tab = tabsOn(side)[0] ?? null;
+  for (const side of SIDES) if (!panes[side].tab) panes[side].open = false;
+}
+
 function createWindow() {
   const saved = readState();
-  Object.assign(pane, saved.pane ?? {});
-  if (!TABS[pane.tab]) pane.tab = "spotify";
+  restorePanes(saved);
   const bounds = saved.bounds;
   win = new BaseWindow({
-    width: bounds?.width ?? 1440,
-    height: bounds?.height ?? 900,
+    width: bounds?.width ?? 1600,
+    height: bounds?.height ?? 940,
     x: bounds?.x,
     y: bounds?.y,
-    minWidth: 960,
+    minWidth: 980,
     minHeight: 600,
     title: "Studio Aegis",
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#111214" : "#f6f5f2",
   });
   appView = createAppView();
-  tabsView = createTabsView();
   win.contentView.addChildView(appView);
-  win.contentView.addChildView(tabsView);
-  if (pane.open) ensureContent(pane.tab);
+  for (const side of SIDES) {
+    tabsViews[side] = createTabsView(side);
+    win.contentView.addChildView(tabsViews[side]);
+  }
+  for (const side of SIDES) if (panes[side].open && panes[side].tab) ensureContent(panes[side].tab);
   layout();
   win.on("resize", layout);
   win.on("close", saveState);
   win.on("closed", () => {
     win = null;
     appView = null;
-    tabsView = null;
+    for (const side of SIDES) tabsViews[side] = null;
     for (const k of Object.keys(content)) content[k] = null;
   });
   loadApp();
@@ -328,6 +462,7 @@ async function exportBackup() {
   // VACUUM INTO writes a consistent snapshot even while the database is open.
   store.db.prepare("VACUUM INTO ?").run(path.join(dest, "aegis.db"));
   fs.cpSync(store.filesDir, path.join(dest, "files"), { recursive: true });
+  fs.cpSync(store.midiDir, path.join(dest, "midi"), { recursive: true });
   shell.showItemInFolder(dest);
   return { ok: true, path: dest };
 }
@@ -379,22 +514,53 @@ async function checkForUpdateFromMenu() {
 
 // ---- IPC from the web UI ---------------------------------------------------
 
+const sideArg = (v) => (SIDES.includes(v) ? v : "left");
 ipcMain.handle("pane:get", () => paneState());
 ipcMain.handle("pane:setTab", (_e, name) => setTab(String(name)));
-ipcMain.handle("pane:toggle", (_e, open) => togglePane(typeof open === "boolean" ? open : undefined));
+ipcMain.handle("pane:toggle", (_e, side, open) => togglePane(sideArg(side), typeof open === "boolean" ? open : undefined));
 ipcMain.handle("pane:open", (_e, name, url) => openInPane(String(name), typeof url === "string" ? url : undefined));
-ipcMain.handle("pane:nav", (_e, action) => paneNav(String(action)));
+ipcMain.handle("pane:nav", (_e, side, action) => paneNav(sideArg(side), String(action)));
 ipcMain.handle("pane:webGo", (_e, input) => webGo(input));
-// Divider drag from the app view: the pointer's screen X sets the pane width.
-ipcMain.on("pane:drag", (_e, screenX) => {
-  if (!win || !pane.open || typeof screenX !== "number") return;
+ipcMain.handle("pane:moveTab", (_e, name) => moveTab(String(name)));
+ipcMain.handle("pane:swap", () => swapSides());
+ipcMain.handle("pane:preset", (_e, name) => applyPreset(String(name)));
+ipcMain.handle("pane:nowPlaying", () => nowPlaying());
+// Right-click on a tab: move it to the other side.
+ipcMain.handle("pane:tabMenu", (e, name) => {
+  if (!TABS[name]) return;
+  const to = sides[name] === "left" ? "右" : "左";
+  Menu.buildFromTemplate([
+    { label: `${to}のパネルへ移動`, click: () => moveTab(name) },
+    { label: "左右を入れ替える", click: swapSides },
+  ]).popup({ window: win ?? undefined });
+});
+// Divider drag from the app view: the pointer's screen X sets that pane's width.
+ipcMain.on("pane:drag", (_e, side, screenX) => {
+  if (!win || !SIDES.includes(side) || !panes[side].open || typeof screenX !== "number") return;
   const { x, width } = win.getContentBounds();
-  pane.ratio = Math.max(0.2, Math.min(0.75, (screenX - x) / width));
+  const px = side === "left" ? screenX - x : x + width - screenX;
+  panes[side].ratio = Math.max(0.12, Math.min(0.5, px / width));
   layout();
 });
 ipcMain.on("pane:dragEnd", () => {
   broadcast();
   saveState();
+});
+// Drag a MIDI clip out of the app straight into the DAW.
+const DRAG_ICON = path.join(__dirname, "midi-drag.png");
+ipcMain.on("app:dragMidi", (e, clipId) => {
+  const file = path.join(store.midiDir, `${String(clipId).replace(/[^0-9a-f-]/gi, "")}.mid`);
+  if (!fs.existsSync(file)) return;
+  // A copy with the clip's name, so the DAW shows a readable region name.
+  const row = store.db.prepare("SELECT name FROM midi_clips WHERE id = ?").get(String(clipId));
+  const named = path.join(app.getPath("temp"), "studio-aegis-midi", `${(row?.name ?? "MIDI").replace(/[\\/:*?"<>|]/g, "_").slice(0, 80)}.mid`);
+  try {
+    fs.mkdirSync(path.dirname(named), { recursive: true });
+    fs.copyFileSync(file, named);
+  } catch {
+    /* fall back to the stored file */
+  }
+  e.sender.startDrag({ file: fs.existsSync(named) ? named : file, icon: nativeImage.createFromPath(DRAG_ICON) });
 });
 ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataDir: dataDir() }));
 ipcMain.handle("app:openDataFolder", () => shell.openPath(dataDir()));
@@ -402,14 +568,19 @@ ipcMain.handle("app:exportBackup", () => exportBackup());
 ipcMain.handle("app:checkForUpdate", () => checkForUpdate());
 ipcMain.handle("app:updateNow", () => updateNow());
 ipcMain.handle("app:openExternal", (_e, url) => openExternal(String(url)));
+ipcMain.handle("app:copyText", (_e, text) => clipboard.writeText(String(text ?? "")));
 
 // ---- Menu ------------------------------------------------------------------
 
 function focusedContents() {
-  const active = pane.open ? content[pane.tab] : null;
-  if (active?.webContents.isFocused()) return active.webContents;
+  for (const side of SIDES) {
+    const active = panes[side].open && panes[side].tab ? content[panes[side].tab] : null;
+    if (active?.webContents.isFocused()) return active.webContents;
+  }
   return appView?.webContents;
 }
+
+const TAB_LABELS = { splice: "Splice", suno: "Suno", web: "Web", amazon: "Amazon(MP3)", ytmusic: "YouTube Music", spotify: "Spotify" };
 
 function buildMenu() {
   const isMac = process.platform === "darwin";
@@ -468,18 +639,27 @@ function buildMenu() {
       ],
     },
     {
-      label: "左パネル",
+      label: "パネル",
       submenu: [
-        { label: pane.open ? "左パネルを隠す" : "左パネルを表示", accelerator: "CmdOrCtrl+Shift+L", click: () => togglePane() },
+        { label: panes.left.open ? "左パネルを畳む" : "左パネルを開く", accelerator: "CmdOrCtrl+Shift+L", click: () => togglePane("left") },
+        { label: panes.right.open ? "右パネルを畳む" : "右パネルを開く", accelerator: "CmdOrCtrl+Shift+R", click: () => togglePane("right") },
+        { label: "左右を入れ替える", accelerator: "CmdOrCtrl+Shift+S", click: swapSides },
         { type: "separator" },
-        { label: "Spotify", type: "radio", checked: pane.tab === "spotify", accelerator: "CmdOrCtrl+1", click: () => setTab("spotify") },
-        { label: "Amazon(MP3)", type: "radio", checked: pane.tab === "amazon", accelerator: "CmdOrCtrl+2", click: () => setTab("amazon") },
-        { label: "Splice", type: "radio", checked: pane.tab === "splice", accelerator: "CmdOrCtrl+3", click: () => setTab("splice") },
-        { label: "Web", type: "radio", checked: pane.tab === "web", accelerator: "CmdOrCtrl+4", click: () => setTab("web") },
+        { label: "LISTEN(聴いて分析)", click: () => applyPreset("listen") },
+        { label: "BUILD(素材探し+プレイヤー)", click: () => applyPreset("build") },
+        { label: "POLISH(リファレンスと比較)", click: () => applyPreset("polish") },
+        { label: "FOCUS(両方畳む)", accelerator: "CmdOrCtrl+Shift+F", click: () => applyPreset("focus") },
         { type: "separator" },
-        { label: "Chrome で開く", click: () => paneNav("chrome") },
-        { label: "Safari で開く", click: () => paneNav("safari") },
-        { label: "既定のブラウザで開く", click: () => paneNav("external") },
+        ...TAB_ORDER.map((t, i) => ({
+          label: `${TAB_LABELS[t]}(${sides[t] === "left" ? "左" : "右"})`,
+          type: "radio",
+          checked: panes[sides[t]].open && panes[sides[t]].tab === t,
+          accelerator: `CmdOrCtrl+${i + 1}`,
+          click: () => setTab(t),
+        })),
+        { type: "separator" },
+        { label: "Chrome で開く(左)", click: () => paneNav("left", "chrome") },
+        { label: "Safari で開く(左)", click: () => paneNav("left", "safari") },
       ],
     },
     { role: "windowMenu", label: "ウィンドウ" },

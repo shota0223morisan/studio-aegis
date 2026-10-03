@@ -1,3 +1,5 @@
+import type { Flow, SimilarSong } from "./flow";
+
 export interface Session {
   spotifyConfigured: boolean;
   maxUploadBytes: number;
@@ -26,6 +28,8 @@ export interface Project {
   spliceLabel: string;
   deadline: string | null;
   pinned: boolean;
+  stage: number;
+  submittedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,6 +62,7 @@ export interface StoredFile {
 }
 
 export interface ProjectDetail extends Project {
+  flow: Flow;
   refs: SpotifyRef[];
   files: StoredFile[];
 }
@@ -106,6 +111,80 @@ export interface NotionIdeas {
   dbUrl: string;
 }
 
+export interface Prefs {
+  gate: "hard" | "soft";
+  timebox: Record<string, number>;
+  autoLayout: boolean;
+  aiModel: "claude" | "fable" | "opus" | "sonnet";
+}
+
+export interface AiMessage {
+  id: string;
+  stage: number;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+}
+
+export interface MidiNote {
+  p: number;
+  s: number;
+  d: number;
+  v: number;
+}
+
+export interface MidiClip {
+  id: string;
+  projectId: string | null;
+  projectName: string | null;
+  name: string;
+  kind: "drums" | "bass" | "chords" | "melody" | "other";
+  bpm: number | null;
+  bars: number | null;
+  source: "ai" | "upload";
+  prompt: string;
+  tracks: { name: string; channel: number; notes: MidiNote[] }[];
+  createdAt: string;
+  fileUrl: string;
+}
+
+export interface RichText {
+  t: string;
+  b?: boolean;
+  i?: boolean;
+  s?: boolean;
+  c?: boolean;
+  href?: string;
+}
+
+export interface NotionBlock {
+  id: string;
+  type: string;
+  text: RichText[];
+  checked?: boolean;
+  toggle?: boolean;
+  icon?: string;
+  children?: NotionBlock[];
+}
+
+export interface NotionPage {
+  configured: boolean;
+  title?: string;
+  icon?: string;
+  url: string;
+  blocks: NotionBlock[];
+  fetchedAt?: number;
+  error?: string;
+}
+
+export interface NotionStatus {
+  configured: boolean;
+  dbId: string;
+  dbUrl: string;
+  mixPage: string;
+  mixUrl: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -146,7 +225,7 @@ export const api = {
   listProjects: (sort = "updated") => request<{ items: Project[] }>(`/api/projects?sort=${sort}`),
   createProject: (name: string, clientId: string | null) => request<Project>("/api/projects", json("POST", { name, clientId })),
   getProject: (id: string) => request<ProjectDetail>(`/api/projects/${id}`),
-  updateProject: (id: string, patch: Partial<Project>) => request<Project>(`/api/projects/${id}`, json("PATCH", patch)),
+  updateProject: (id: string, patch: Partial<Project> & { flow?: Flow }) => request<Project>(`/api/projects/${id}`, json("PATCH", patch)),
   deleteProject: (id: string) => request(`/api/projects/${id}`, json("DELETE")),
   setThumbnail: (id: string, file: File) =>
     request<Project>(`/api/projects/${id}/thumbnail?${new URLSearchParams({ name: file.name })}`, { method: "PUT", body: file }),
@@ -163,10 +242,29 @@ export const api = {
     request<StoredFile>(`/api/files/${fileId}`, json("PATCH", patch)),
   deleteFile: (fileId: string) => request(`/api/files/${fileId}`, json("DELETE")),
 
-  notionStatus: () => request<{ configured: boolean; dbId: string; dbUrl: string }>("/api/notion/status"),
-  notionSettings: (patch: { token?: string; db?: string }) =>
-    request<{ configured: boolean; dbId: string; dbUrl: string }>("/api/notion/settings", json("PUT", patch)),
+  notionStatus: () => request<NotionStatus>("/api/notion/status"),
+  notionSettings: (patch: { token?: string; db?: string; mixPage?: string }) => request<NotionStatus>("/api/notion/settings", json("PUT", patch)),
   notionIdeas: (refresh = false) => request<NotionIdeas>(`/api/notion/ideas${refresh ? "?refresh=1" : ""}`),
+  notionMix: (refresh = false) => request<NotionPage>(`/api/notion/mix${refresh ? "?refresh=1" : ""}`),
+
+  prefs: () => request<Prefs>("/api/prefs"),
+  setPrefs: (patch: Partial<Prefs>) => request<Prefs>("/api/prefs", json("PUT", patch)),
+
+  aiStatus: () => request<{ found: boolean; path: string; version: string }>("/api/ai/status"),
+  aiMessages: (id: string, stage: number) => request<{ items: AiMessage[] }>(`/api/projects/${id}/ai?stage=${stage}`),
+  aiClear: (id: string, stage: number) => request(`/api/projects/${id}/ai?stage=${stage}`, json("DELETE")),
+  aiSimilar: (id: string, focus?: string) => request<{ items: SimilarSong[]; at: string }>(`/api/projects/${id}/ai/similar`, json("POST", { focus })),
+  aiSuno: (id: string, part?: string) => request<{ style: string; exclude: string; note: string }>(`/api/projects/${id}/ai/suno`, json("POST", { part })),
+  aiMidi: (id: string, body: { kind: string; bars: number; prompt: string; section?: string }) =>
+    request<{ clip: MidiClip; comment: string }>(`/api/projects/${id}/ai/midi`, json("POST", body)),
+
+  listMidi: (params: { project?: string; kind?: string; q?: string }) =>
+    request<{ items: MidiClip[] }>(`/api/midi?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`),
+  updateMidi: (clipId: string, patch: { name?: string; kind?: string; projectId?: null }) => request<MidiClip>(`/api/midi/${clipId}`, json("PATCH", patch)),
+  deleteMidi: (clipId: string) => request(`/api/midi/${clipId}`, json("DELETE")),
+  copyMidi: (clipId: string, projectId: string) => request<MidiClip>(`/api/midi/${clipId}/copy`, json("POST", { projectId })),
+  uploadMidi: (file: File, projectId?: string) =>
+    request<MidiClip>(`/api/midi?${new URLSearchParams({ name: file.name, ...(projectId ? { project: projectId } : {}) })}`, { method: "PUT", body: file }),
 
   spotifyStatus: () => request<SpotifyStatus>("/api/spotify/status"),
   spotifyLogout: () => request("/api/spotify/logout", json("POST")),

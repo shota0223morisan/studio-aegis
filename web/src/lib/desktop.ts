@@ -17,7 +17,9 @@ export interface UpdateProgress {
   error?: string;
 }
 
-export type PaneTab = "spotify" | "amazon" | "splice" | "web";
+export type PaneTab = "splice" | "suno" | "web" | "amazon" | "ytmusic" | "spotify";
+export type PaneSide = "left" | "right";
+export type PanePreset = "listen" | "build" | "polish" | "focus";
 
 export interface PanePage {
   url: string;
@@ -27,14 +29,25 @@ export interface PanePage {
   canGoForward: boolean;
 }
 
-export interface PaneState {
+export interface PaneSideState {
   open: boolean;
-  tab: PaneTab;
+  tab: PaneTab | null;
   ratio: number;
-  spotify: PanePage | null;
-  amazon: PanePage | null;
-  splice: PanePage | null;
-  web: PanePage | null;
+}
+
+export interface PaneState {
+  left: PaneSideState;
+  right: PaneSideState;
+  sides: Record<PaneTab, PaneSide>;
+  pages: Record<PaneTab, PanePage | null>;
+}
+
+export interface NowPlaying {
+  title: string;
+  artist: string;
+  album: string;
+  url: string;
+  source: PaneTab;
 }
 
 export interface AegisDesktop {
@@ -42,13 +55,20 @@ export interface AegisDesktop {
   platform: string;
   getPaneState: () => Promise<PaneState>;
   setPaneTab: (tab: PaneTab) => Promise<void>;
-  togglePane: (open?: boolean) => Promise<void>;
+  togglePane: (side: PaneSide, open?: boolean) => Promise<void>;
   openInPane: (tab: PaneTab, url?: string) => Promise<void>;
-  paneNav: (action: "back" | "forward" | "reload" | "home" | "external" | "chrome" | "safari") => Promise<void>;
+  paneNav: (side: PaneSide, action: "back" | "forward" | "reload" | "home" | "external" | "chrome" | "safari") => Promise<void>;
   webGo: (input: string) => Promise<void>;
-  paneDrag: (screenX: number) => void;
+  moveTab: (tab: PaneTab) => Promise<void>;
+  swapPanes: () => Promise<void>;
+  applyPreset: (name: PanePreset) => Promise<void>;
+  tabMenu: (tab: PaneTab) => Promise<void>;
+  nowPlaying: () => Promise<NowPlaying | null>;
+  paneDrag: (side: PaneSide, screenX: number) => void;
   paneDragEnd: () => void;
   onPaneState: (cb: (state: PaneState) => void) => () => void;
+  dragMidi: (clipId: string) => void;
+  copyText: (text: string) => Promise<void>;
   getInfo: () => Promise<{ version: string; dataDir: string }>;
   openDataFolder: () => Promise<void>;
   exportBackup: () => Promise<{ ok: boolean; path?: string }>;

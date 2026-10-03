@@ -1,0 +1,68 @@
+import { useState } from "react";
+import { LAYER_PRESETS, uid, type LayerPart } from "../../lib/flow";
+import { IdeasPanel } from "../IdeasPanel";
+import { RefSelect } from "./FrameStage";
+import { MidiSection } from "./MidiSection";
+import type { StageProps } from "./types";
+
+/** STAGE 03 LAYER: the upper parts, each with which reference (and where) it draws from. */
+export function LayerStage({ project, flow, update }: StageProps) {
+  const [custom, setCustom] = useState("");
+  const parts = flow.parts ?? [];
+  const set = (id: string, patch: Partial<LayerPart>) => update((f) => ({ ...f, parts: (f.parts ?? []).map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+  const add = (name: string) => name.trim() && update((f) => ({ ...f, parts: [...(f.parts ?? []), { id: uid(), name: name.trim() }] }));
+  const done = parts.filter((p) => p.done).length;
+
+  return (
+    <>
+      <section className="card">
+        <div className="section-head">
+          <span className="sec-index">01</span>
+          <h2 className="fx-en">LAYER MAP</h2>
+          <span className="muted small">上物 — どの曲のどこを活かす?</span>
+          <span className="sec-line" />
+          <span className="muted small">
+            {done}/{parts.length} 完了
+          </span>
+        </div>
+        <div className="layer-list">
+          {parts.map((p) => (
+            <div key={p.id} className={`layer-row ${p.done ? "ok" : ""}`}>
+              <input className="layer-name" value={p.name} onChange={(e) => set(p.id, { name: e.target.value })} aria-label="パート" />
+              <RefSelect flow={flow} value={p.ref} onChange={(ref) => set(p.id, { ref })} />
+              <input value={p.point ?? ""} placeholder="参考にする所(例: Bのストリングスの白玉)" onChange={(e) => set(p.id, { point: e.target.value })} />
+              <button className={`btn small ${p.done ? "on core-done" : ""}`} onClick={() => set(p.id, { done: !p.done })}>
+                {p.done ? "✓ 入れた" : "未"}
+              </button>
+              <button className="icon-btn danger" onClick={() => update((f) => ({ ...f, parts: (f.parts ?? []).filter((x) => x.id !== p.id) }))} title="削除">
+                ×
+              </button>
+            </div>
+          ))}
+          {!parts.length && <p className="muted small">下から足していく(ギター・ストリングス・ピアノ・ブラス・FX…)</p>}
+        </div>
+        <div className="arr-add">
+          {LAYER_PRESETS.filter((n) => !parts.some((p) => p.name === n)).map((n) => (
+            <button key={n} className="chip-btn" onClick={() => add(n)}>
+              ＋ {n}
+            </button>
+          ))}
+          <form
+            className="inline-add"
+            onSubmit={(e) => {
+              e.preventDefault();
+              add(custom);
+              setCustom("");
+            }}
+          >
+            <input value={custom} placeholder="ほかのパート" onChange={(e) => setCustom(e.target.value)} />
+          </form>
+        </div>
+      </section>
+      <MidiSection projectId={project.id} flow={flow} index="02" defaultKind="melody" />
+      <section className="card">
+        <IdeasPanel index="03" />
+      </section>
+    </>
+  );
+}

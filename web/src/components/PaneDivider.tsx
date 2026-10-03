@@ -1,22 +1,22 @@
 import { useRef } from "react";
-import { desktop } from "../lib/desktop";
+import { desktop, type PaneSide } from "../lib/desktop";
 
-/** Drag handle on the app's left edge that resizes the desktop app's left pane. */
-export function PaneDivider() {
+/** Drag handle on the app's left / right edge that resizes that side pane of the desktop app. */
+export function PaneDivider({ side }: { side: PaneSide }) {
   const dragging = useRef(false);
   if (!desktop) return null;
   return (
     <div
-      className="pane-divider"
+      className={`pane-divider ${side}`}
       role="separator"
       aria-orientation="vertical"
-      title="ドラッグで左パネルの幅を変更"
+      title={`ドラッグで${side === "left" ? "左" : "右"}パネルの幅を変更`}
       onPointerDown={(e) => {
         dragging.current = true;
         e.currentTarget.setPointerCapture(e.pointerId);
         document.body.classList.add("resizing");
       }}
-      onPointerMove={(e) => dragging.current && desktop!.paneDrag(e.screenX)}
+      onPointerMove={(e) => dragging.current && desktop!.paneDrag(side, e.screenX)}
       onPointerUp={(e) => {
         dragging.current = false;
         e.currentTarget.releasePointerCapture(e.pointerId);

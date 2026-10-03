@@ -5,6 +5,7 @@ import { App } from "./App";
 import { applySavedTheme } from "./lib/theme";
 import "./styles.css";
 import "./themes.css";
+import "./flow.css";
 import "./fonts";
 
 applySavedTheme();

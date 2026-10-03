@@ -8,6 +8,7 @@ const express = require("express");
 const { newId, now } = require("./db");
 const { createSpotifyRouter, fetchOEmbedTitle, parseSpotifyRef } = require("./spotify");
 const { createNotionRouter } = require("./notion");
+const { createFlowRouter } = require("./flow");
 
 const FILE_CATEGORIES = ["client_ref", "deliverable", "other"];
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
@@ -97,6 +98,8 @@ function createServer({ store, webDir, port, sessionToken }) {
     spliceLabel: p.splice_label,
     deadline: p.deadline,
     pinned: Boolean(p.pinned),
+    stage: p.stage ?? 1,
+    submittedAt: p.submitted_at ?? null,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   });
@@ -155,6 +158,7 @@ function createServer({ store, webDir, port, sessionToken }) {
 
   app.use("/api/spotify", createSpotifyRouter(store, { redirectUri: `${origin}/api/spotify/callback` }));
   app.use("/api/notion", createNotionRouter(store));
+  app.use("/api", createFlowRouter(store));
 
   // ---- clients (取引先) ----
   const getClient = (id) => db.prepare("SELECT * FROM clients WHERE id = ?").get(id);
@@ -256,7 +260,13 @@ function createServer({ store, webDir, port, sessionToken }) {
     const p = res.locals.project;
     const refs = db.prepare("SELECT * FROM spotify_refs WHERE project_id = ? ORDER BY position").all(p.id);
     const files = db.prepare("SELECT * FROM files WHERE project_id = ? ORDER BY created_at DESC").all(p.id);
-    res.json({ ...serializeProject(p), refs: refs.map(serializeRef), files: files.map(serializeFile) });
+    let flow = {};
+    try {
+      flow = JSON.parse(p.flow || "{}");
+    } catch {
+      /* keep empty */
+    }
+    res.json({ ...serializeProject(p), flow, refs: refs.map(serializeRef), files: files.map(serializeFile) });
   });
 
   app.patch("/api/projects/:id", loadProject, (req, res) => {
@@ -280,6 +290,13 @@ function createServer({ store, webDir, port, sessionToken }) {
     }
     if (b.deadline === null || typeof b.deadline === "string") updates.deadline = b.deadline || null;
     if (typeof b.pinned === "boolean") updates.pinned = b.pinned ? 1 : 0;
+    if (Number.isInteger(b.stage) && b.stage >= 1 && b.stage <= 5) updates.stage = b.stage;
+    if (b.submittedAt === null || typeof b.submittedAt === "string") updates.submitted_at = b.submittedAt || null;
+    if (b.flow && typeof b.flow === "object" && !Array.isArray(b.flow)) {
+      const text = JSON.stringify(b.flow);
+      if (text.length > 1_000_000) return res.status(413).json({ error: "メモが大きすぎます" });
+      updates.flow = text;
+    }
     if (Object.keys(updates).length) {
       updates.updated_at = now();
       const cols = Object.keys(updates);

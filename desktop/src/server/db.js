@@ -6,6 +6,7 @@ const path = require("node:path");
 
 function openDatabase(dataDir) {
   fs.mkdirSync(path.join(dataDir, "files"), { recursive: true });
+  fs.mkdirSync(path.join(dataDir, "midi"), { recursive: true });
   const db = new DatabaseSync(path.join(dataDir, "aegis.db"));
 
   db.exec(`
@@ -63,6 +64,7 @@ function openDatabase(dataDir) {
   return {
     db,
     filesDir: path.join(dataDir, "files"),
+    midiDir: path.join(dataDir, "midi"),
     kvGet(key) {
       const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(key);
       return row ? JSON.parse(row.value) : undefined;
@@ -94,6 +96,36 @@ const MIGRATIONS = [
     ALTER TABLE projects ADD COLUMN client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;
     ALTER TABLE projects ADD COLUMN brief TEXT NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS projects_client ON projects(client_id, updated_at);
+  `,
+  // v2: production flow (stage + per-stage data as JSON), AI conversations, MIDI library
+  `
+    ALTER TABLE projects ADD COLUMN stage INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE projects ADD COLUMN flow TEXT NOT NULL DEFAULT '{}';
+    ALTER TABLE projects ADD COLUMN submitted_at TEXT;
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id          TEXT PRIMARY KEY,
+      project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      stage       INTEGER NOT NULL,
+      role        TEXT NOT NULL,       -- user | assistant
+      text        TEXT NOT NULL,
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS ai_messages_project ON ai_messages(project_id, stage, created_at);
+    -- MIDI library: every clip lives here (file at midi/<id>.mid); project_id = the song it belongs to.
+    -- Clips of a deleted song stay in the library.
+    CREATE TABLE IF NOT EXISTS midi_clips (
+      id          TEXT PRIMARY KEY,
+      project_id  TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      name        TEXT NOT NULL,
+      kind        TEXT NOT NULL DEFAULT 'other',  -- drums | bass | chords | melody | other
+      bpm         REAL,
+      bars        INTEGER,
+      data        TEXT NOT NULL DEFAULT '{}',     -- { tracks: [{ name, channel, notes: [{ p, s, d, v }] }] } (beats)
+      source      TEXT NOT NULL DEFAULT 'upload', -- ai | upload
+      prompt      TEXT NOT NULL DEFAULT '',
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS midi_clips_project ON midi_clips(project_id, created_at);
   `,
 ];
 

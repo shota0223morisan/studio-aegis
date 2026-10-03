@@ -119,7 +119,8 @@ export function Sidebar({ open, onToggle }: { open: boolean; onToggle: () => voi
                   {list.map((s) => (
                     <li key={s.id}>
                       <NavLink to={`/p/${s.id}`} className={({ isActive }) => `side-song ${isActive ? "on" : ""}`}>
-                        {s.name}
+                        <span className="side-song-name">{s.name}</span>
+                        <StageBadge stage={s.stage} done={Boolean(s.submittedAt)} />
                       </NavLink>
                     </li>
                   ))}
@@ -142,7 +143,8 @@ export function Sidebar({ open, onToggle }: { open: boolean; onToggle: () => voi
               {unassigned.map((s) => (
                 <li key={s.id}>
                   <NavLink to={`/p/${s.id}`} className={({ isActive }) => `side-song ${isActive ? "on" : ""}`}>
-                    {s.name}
+                    <span className="side-song-name">{s.name}</span>
+                    <StageBadge stage={s.stage} done={Boolean(s.submittedAt)} />
                   </NavLink>
                 </li>
               ))}
@@ -166,5 +168,14 @@ export function Sidebar({ open, onToggle }: { open: boolean; onToggle: () => voi
         )}
       </div>
     </aside>
+  );
+}
+
+/** Stage number in the stage's colour (✓ when submitted). */
+function StageBadge({ stage, done }: { stage: number; done: boolean }) {
+  return (
+    <span className={`stage-badge s${done ? "done" : stage}`} title={done ? "提出済み" : `STAGE 0${stage}`}>
+      {done ? "✓" : `0${stage}`}
+    </span>
   );
 }
