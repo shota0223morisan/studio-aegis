@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../lib/api";
 import { desktop, type UpdateInfo } from "../lib/desktop";
 import { ThemeGallery } from "../components/ThemePicker";
+import { UpdateButton } from "../components/UpdateButton";
 
 export function SettingsPage() {
   const [info, setInfo] = useState<{ version: string; dataDir: string } | null>(null);
@@ -69,14 +70,12 @@ export function SettingsPage() {
             >
               {checking ? "確認中…" : "アップデートを確認"}
             </button>
-            {update && !update.available && <span className="muted small">{update.latest ? "最新です" : "確認できませんでした"}</span>}
-            {update?.available && (
-              <button className="btn primary" onClick={() => update.url && void desktop!.openExternal(update.url)}>
-                {update.latest} をダウンロード
-              </button>
+            {update && !update.available && (
+              <span className="muted small">{update.latest ? "最新です" : (update.problem ?? "確認できませんでした")}</span>
             )}
+            {update?.available && <UpdateButton info={update} />}
           </div>
-          <p className="hint small">更新は新しい dmg を入れ直すだけです。データはそのまま残ります。</p>
+          <p className="hint small">「今すぐ更新」で新しい版を自動でダウンロードして入れ替え、再起動します。データはそのまま残ります。</p>
         </section>
       )}
     </div>

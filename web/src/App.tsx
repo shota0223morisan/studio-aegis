@@ -12,6 +12,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { PaneTabsPage } from "./pages/PaneTabsPage";
 import { ThemeDots } from "./components/ThemePicker";
 import { Sidebar } from "./components/Sidebar";
+import { UpdateButton } from "./components/UpdateButton";
 import { PaneDivider } from "./components/PaneDivider";
 
 export function App() {
@@ -94,9 +95,7 @@ function Shell() {
           {update?.available && (
             <div className="update-banner">
               新しいバージョン {update.latest} があります。
-              <button className="btn small" onClick={() => update.url && void desktop?.openExternal(update.url)}>
-                ダウンロードページを開く
-              </button>
+              <UpdateButton info={update} small />
               <button className="btn ghost small" onClick={() => setUpdate(null)}>
                 あとで
               </button>

@@ -25,5 +25,8 @@ contextBridge.exposeInMainWorld("aegisDesktop", {
   exportBackup: () => ipcRenderer.invoke("app:exportBackup"),
   checkForUpdate: () => ipcRenderer.invoke("app:checkForUpdate"),
   onUpdateAvailable: (cb) => subscribe("update-available", cb),
+  /** Download, verify and install the latest version, then relaunch. */
+  updateNow: () => ipcRenderer.invoke("app:updateNow"),
+  onUpdateProgress: (cb) => subscribe("update-progress", cb),
   openExternal: (url) => ipcRenderer.invoke("app:openExternal", url),
 });

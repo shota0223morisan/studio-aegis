@@ -556,3 +556,10 @@ body.pane-tabs-body { background-image: none; overflow: hidden; }
 .n-purple { --nt: #a78bfa; }
 .n-pink { --nt: #f472b6; }
 .n-red { --nt: #f87171; }
+
+/* ---- Update button (fills up while downloading) ---- */
+.update-btn.busy { position: relative; overflow: hidden; opacity: 1; }
+.update-btn.busy::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: var(--pct, 0%);
+  background: rgba(255, 255, 255, 0.28); transition: width 0.2s ease;
+}

@@ -11,11 +11,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { openDatabase } = require("./server/db");
 const { createServer } = require("./server/server");
+const updater = require("./updater");
 
 const PORT = Number(process.env.AEGIS_PORT) || 47823; // fixed: the Spotify redirect URI includes it
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PRELOAD = path.join(__dirname, "preload.js");
-const RELEASES_API = "https://api.github.com/repos/shota0223morisan/studio-aegis/releases/latest";
 const SPLICE_HOST = /(^|\.)splice\.com$/;
 // OAuth / login pages that must stay inside the window so the redirect back to the app works.
 const AUTH_HOSTS = /(^|\.)(spotify\.com|google\.com|apple\.com|facebook\.com|splice\.com)$/;
@@ -332,22 +332,28 @@ async function exportBackup() {
   return { ok: true, path: dest };
 }
 
-function newerThan(a, b) {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
-  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
-  return false;
-}
-
 async function checkForUpdate() {
   try {
-    const res = await fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return { current: app.getVersion(), latest: null, available: false };
-    const release = await res.json();
-    const latest = String(release.tag_name ?? "").replace(/^desktop-v/, "");
-    return { current: app.getVersion(), latest, available: newerThan(latest, app.getVersion()), url: release.html_url };
-  } catch {
-    return { current: app.getVersion(), latest: null, available: false };
+    return await updater.check();
+  } catch (err) {
+    return { current: app.getVersion(), latest: null, available: false, canInstall: false, problem: err.message };
+  }
+}
+
+let updating = false;
+const sendUpdate = (progress) => appView?.webContents.send("update-progress", progress);
+
+/** One-click update: download, verify, swap the app and relaunch. */
+async function updateNow() {
+  if (updating) return { ok: true };
+  updating = true;
+  try {
+    await updater.updateNow(sendUpdate);
+    return { ok: true };
+  } catch (err) {
+    updating = false;
+    sendUpdate({ phase: "error", error: err.message });
+    return { ok: false, error: err.message };
   }
 }
 
@@ -356,12 +362,18 @@ async function checkForUpdateFromMenu() {
   if (r.available) {
     const { response } = await dialog.showMessageBox({
       message: `新しいバージョン ${r.latest} があります`,
-      detail: `いまのバージョン: ${r.current}\nダウンロードページで dmg を入れ直すと更新できます(データはそのまま残ります)。`,
-      buttons: ["ダウンロードページを開く", "あとで"],
+      detail: r.canInstall
+        ? `いまのバージョン: ${r.current}\n「今すぐ更新」で自動でダウンロードして入れ替え、再起動します(データはそのまま残ります)。`
+        : `いまのバージョン: ${r.current}\n${r.problem ?? ""}`,
+      buttons: r.canInstall ? ["今すぐ更新", "あとで"] : ["ダウンロードページを開く", "あとで"],
     });
-    if (response === 0) openExternal(r.url);
+    if (response !== 0) return;
+    if (r.canInstall) {
+      const result = await updateNow();
+      if (!result.ok) await dialog.showMessageBox({ type: "warning", message: "更新できませんでした", detail: result.error });
+    } else openExternal(r.url);
   } else {
-    await dialog.showMessageBox({ message: r.latest ? "最新バージョンです" : "更新を確認できませんでした", detail: `バージョン ${r.current}` });
+    await dialog.showMessageBox({ message: r.latest ? "最新バージョンです" : "更新を確認できませんでした", detail: r.problem ?? `バージョン ${r.current}` });
   }
 }
 
@@ -388,6 +400,7 @@ ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataDir: dataDir(
 ipcMain.handle("app:openDataFolder", () => shell.openPath(dataDir()));
 ipcMain.handle("app:exportBackup", () => exportBackup());
 ipcMain.handle("app:checkForUpdate", () => checkForUpdate());
+ipcMain.handle("app:updateNow", () => updateNow());
 ipcMain.handle("app:openExternal", (_e, url) => openExternal(String(url)));
 
 // ---- Menu ------------------------------------------------------------------

@@ -4,6 +4,17 @@ export interface UpdateInfo {
   latest: string | null;
   available: boolean;
   url?: string;
+  /** True when the app can replace itself (installed in /Applications etc.). */
+  canInstall?: boolean;
+  problem?: string | null;
+}
+
+export interface UpdateProgress {
+  phase: "downloading" | "verifying" | "restarting" | "error";
+  done?: number;
+  total?: number;
+  version?: string;
+  error?: string;
 }
 
 export type PaneTab = "spotify" | "amazon" | "splice" | "web";
@@ -43,6 +54,8 @@ export interface AegisDesktop {
   exportBackup: () => Promise<{ ok: boolean; path?: string }>;
   checkForUpdate: () => Promise<UpdateInfo>;
   onUpdateAvailable: (cb: (info: UpdateInfo) => void) => () => void;
+  updateNow: () => Promise<{ ok: boolean; error?: string }>;
+  onUpdateProgress: (cb: (p: UpdateProgress) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
 }
 
