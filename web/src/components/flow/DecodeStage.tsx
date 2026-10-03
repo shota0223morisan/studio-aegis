@@ -1,4 +1,5 @@
 import { api } from "../../lib/api";
+import { CardChecks } from "../../lib/gate";
 import { MarkdownMemo } from "../MarkdownMemo";
 import { FilesSection } from "../FilesSection";
 import { RefSlots } from "./RefSlots";
@@ -17,6 +18,7 @@ export function DecodeStage({ project, flow, update, session, onFilesChange, pat
           index="01"
           icon="✉"
           title="先方からの指示"
+          headExtra={<CardChecks ids={["brief", "mission"]} />}
           initial={project.brief}
           save={async (v) => {
             await api.updateProject(project.id, { brief: v });
@@ -45,6 +47,7 @@ export function DecodeStage({ project, flow, update, session, onFilesChange, pat
           <span className="sec-index">04</span>
           <h2 className="fx-en">ANALYSIS</h2>
           <span className="sec-line" />
+          <CardChecks ids={["bpm"]} />
         </div>
         <div className="analysis-grid">
           <label>

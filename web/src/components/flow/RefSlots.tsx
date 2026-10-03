@@ -4,6 +4,7 @@ import { analyzeAudio } from "../../lib/audio";
 import { desktop } from "../../lib/desktop";
 import { filled, SLOT_KEYS, spotifySearch, type Flow, type RefSlot } from "../../lib/flow";
 import { playSong } from "../../lib/play";
+import { CardChecks } from "../../lib/gate";
 import { AutoTextarea } from "../AutoTextarea";
 
 export function openSpotify(q: string) {
@@ -34,6 +35,7 @@ export function RefSlots({ flow, update, files }: { flow: Flow; update: (fn: (f:
         <span className="sec-index">02</span>
         <h2 className="fx-en">REF SLOTS</h2>
         <span className="sec-line" />
+        <CardChecks ids={["refs", "use"]} />
         <button className="btn ghost small" onClick={() => setSlot(count, { title: "", artist: "" })} title="4 曲目以降を追加">
           ＋ 枠
         </button>

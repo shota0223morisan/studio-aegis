@@ -11,7 +11,7 @@ const PREFS_KEY = "prefs";
 const DEFAULT_PREFS = {
   gate: "hard", // hard: a stage can't be left until its checklist is done | soft: allowed, but recorded
   timebox: { 1: 30, 2: 90, 3: 120, 4: 60 }, // minutes per stage (SHIP has none)
-  autoLayout: true, // switch the side panes when the stage changes
+  autoLayout: false, // switch the side panes when the stage changes (off: panes stay as they are)
   aiModel: "claude",
 };
 
@@ -94,7 +94,9 @@ function createFlowRouter(store) {
 
   const prefs = () => {
     const saved = store.kvGet(PREFS_KEY) ?? {};
-    return { ...DEFAULT_PREFS, ...saved, timebox: { ...DEFAULT_PREFS.timebox, ...(saved.timebox ?? {}) } };
+    // "autoLayout" used to default to on; only an explicit choice made since (autoLayoutOn) counts now.
+    const { autoLayout: _old, autoLayoutOn, ...rest } = saved;
+    return { ...DEFAULT_PREFS, ...rest, autoLayout: autoLayoutOn === true, timebox: { ...DEFAULT_PREFS.timebox, ...(saved.timebox ?? {}) } };
   };
   const getProject = (id) => db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
   function loadProject(req, res, next) {
@@ -127,7 +129,8 @@ function createFlowRouter(store) {
         if (Number.isFinite(v) && v >= 0 && v <= 24 * 60) next.timebox[k] = Math.round(v);
       }
     }
-    store.kvSet(PREFS_KEY, next);
+    const { autoLayout, ...rest } = next;
+    store.kvSet(PREFS_KEY, { ...rest, autoLayoutOn: autoLayout });
     res.json(next);
   });
 

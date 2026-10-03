@@ -21,6 +21,7 @@ export function FilesSection({
   title = "ファイル",
   index,
   bare = false,
+  headExtra,
 }: {
   projectId: string;
   files: StoredFile[];
@@ -32,6 +33,7 @@ export function FilesSection({
   index?: string;
   /** Render without the section header (embedded in another card). */
   bare?: boolean;
+  headExtra?: React.ReactNode;
 }) {
   const filesRef = useRef(files);
   filesRef.current = files;
@@ -58,6 +60,7 @@ export function FilesSection({
           <h2>{title}</h2>
           <span className="muted small">1 ファイル最大 {formatBytes(maxUploadBytes)}</span>
           <span className="sec-line" aria-hidden />
+          {headExtra}
         </div>
       )}
       <div className={`file-groups ${bare ? "bare" : ""}`}>

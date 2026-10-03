@@ -8,6 +8,7 @@ import { stageChecks, stageMeta, stopTimer, type Flow } from "../lib/flow";
 import { formatDate } from "../lib/format";
 import { useLibrary } from "../lib/library";
 import { useMixTips } from "../lib/mixTips";
+import { GateProvider } from "../lib/gate";
 import { usePrefs } from "../lib/prefs";
 import { saveLabel, useAutosave } from "../lib/useAutosave";
 import { Thumb } from "../components/Thumb";
@@ -142,6 +143,11 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
       } else update((f) => ({ ...f, mixChecks: { ...f.mixChecks, [c.label]: !f.mixChecks?.[c.label] } }));
       return;
     }
+    if (view === 2 && (c.id === "drums" || c.id === "bass" || c.id === "harmony")) {
+      const id = c.id;
+      update((f) => ({ ...f, core: { ...f.core, [id]: { ...f.core?.[id], done: !f.core?.[id]?.done } } }));
+      return;
+    }
     const k = `${view}:${c.id}`;
     update((f) => ({ ...f, manual: { ...f.manual, [k]: !f.manual?.[k] } }));
   }
@@ -188,6 +194,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
         )}
       </div>
 
+      <GateProvider checks={gateChecks} toggle={toggleCheck}>
       <div className="flow-grid">
         <div className="flow-main">
           {view !== 1 && <BriefPeek project={project} session={session} onFilesChange={props.onFilesChange} />}
@@ -209,6 +216,8 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
           {memo}
         </aside>
       </div>
+
+      </GateProvider>
 
       <details className="card archive">
         <summary>

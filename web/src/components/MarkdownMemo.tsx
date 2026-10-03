@@ -19,6 +19,7 @@ export function MarkdownMemo({
   save,
   placeholder,
   children,
+  headExtra,
 }: {
   title: string;
   index?: string;
@@ -28,6 +29,8 @@ export function MarkdownMemo({
   save: (value: string) => Promise<unknown>;
   placeholder?: string;
   children?: ReactNode;
+  /** Extra controls in the header (e.g. EXIT GATE checkboxes). */
+  headExtra?: ReactNode;
 }) {
   const [text, setText] = useState(initial);
   const [editing, setEditing] = useState(!initial.trim());
@@ -44,6 +47,7 @@ export function MarkdownMemo({
         {subtitle && <span className="muted small">{subtitle}</span>}
         <span className="save-state">{saveLabel(autosave.state)}</span>
         <span className="sec-line" aria-hidden />
+        {headExtra}
         <div className="segmented" role="tablist">
           <button role="tab" aria-selected={editing} className={editing ? "active" : ""} onClick={() => setEditing(true)}>
             編集

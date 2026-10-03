@@ -1,5 +1,6 @@
 import { STAGES, elapsed, formatClock } from "../../lib/flow";
 import { usePrefs } from "../../lib/prefs";
+import { CardChecks } from "../../lib/gate";
 import { FilesSection } from "../FilesSection";
 import type { StageProps } from "./types";
 
@@ -24,6 +25,7 @@ export function ShipStage({
         <FilesSection
           index="01"
           title="書き出した音源"
+          headExtra={<CardChecks ids={["master"]} />}
           only={["deliverable"]}
           projectId={project.id}
           files={project.files}

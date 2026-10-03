@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type MidiKind } from "../../lib/api";
 import { SECTION_PRESETS, SLOT_KEYS, START_OPTIONS, STRUCTURE_TEMPLATES, filled, uid, type CorePart, type Flow, type Section } from "../../lib/flow";
+import { CardChecks } from "../../lib/gate";
 import { midiChanged } from "../../lib/midiEvents";
 import { toast } from "../../lib/toast";
 import { GEN_STYLES, KEY_OPTIONS, chordName, formatProgression, generate, parseProgression, splitBySection, type GenStyle } from "../../lib/theory";
@@ -21,6 +22,7 @@ export function FrameStage({ project, flow, update }: StageProps) {
           <span className="sec-index">02</span>
           <h2 className="fx-en">START & CHORDS</h2>
           <span className="sec-line" />
+          <CardChecks ids={["start", "chords"]} />
         </div>
         <div className="start-row">
           <span className="muted small">最初に</span>
@@ -57,6 +59,7 @@ function StructureCard({ flow, update }: Pick<StageProps, "flow" | "update">) {
         <span className="sec-index">01</span>
         <h2 className="fx-en">STRUCTURE</h2>
         <span className="sec-line" />
+        <CardChecks ids={["structure"]} />
         <select
           className="small"
           value=""
@@ -287,6 +290,7 @@ function CoreParts({ flow, update, projectId }: Pick<StageProps, "flow" | "updat
         <span className="sec-index">03</span>
         <h2 className="fx-en">CORE 3</h2>
         <span className="sec-line" />
+        <CardChecks ids={["drums", "bass", "harmony"]} />
       </div>
       <div className="core-grid">
         {CORE.map((c) => {

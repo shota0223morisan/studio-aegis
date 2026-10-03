@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LAYER_PRESETS, uid, type LayerPart } from "../../lib/flow";
+import { CardChecks } from "../../lib/gate";
 import { IdeasPanel } from "../IdeasPanel";
 import { RefSelect } from "./FrameStage";
 import { MidiSection } from "./MidiSection";
@@ -11,7 +12,6 @@ export function LayerStage({ project, flow, update }: StageProps) {
   const parts = flow.parts ?? [];
   const set = (id: string, patch: Partial<LayerPart>) => update((f) => ({ ...f, parts: (f.parts ?? []).map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
   const add = (name: string) => name.trim() && update((f) => ({ ...f, parts: [...(f.parts ?? []), { id: uid(), name: name.trim() }] }));
-  const done = parts.filter((p) => p.done).length;
 
   return (
     <>
@@ -20,9 +20,7 @@ export function LayerStage({ project, flow, update }: StageProps) {
           <span className="sec-index">01</span>
           <h2 className="fx-en">LAYER MAP</h2>
           <span className="sec-line" />
-          <span className="muted small">
-            {done}/{parts.length} 完了
-          </span>
+          <CardChecks ids={["parts", "points", "done"]} />
         </div>
         <div className="layer-list">
           {parts.map((p) => (

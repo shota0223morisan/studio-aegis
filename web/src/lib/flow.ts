@@ -101,6 +101,8 @@ export interface Check {
   auto?: boolean;
   /** Ticked by hand. */
   manual?: boolean;
+  /** The written value *is* the tick (e.g. CORE 3 「仮決め」): toggling flips it. */
+  self?: boolean;
   sub?: string;
 }
 
@@ -129,6 +131,7 @@ export function stageChecks(n: number, project: ProjectDetail, flow: Flow, mixIt
   const list = autoChecks(n, project, flow, mixItems);
   if (n === 4) return list; // MIXING items are ticked by hand anyway
   return list.map((c) => {
+    if (c.self) return { ...c, auto: false, manual: c.ok };
     const manual = Boolean(flow.manual?.[`${n}:${c.id}`]);
     return { ...c, auto: c.ok, manual, ok: c.ok || manual };
   });
@@ -159,9 +162,9 @@ function autoChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: str
         { id: "structure", label: "構成", ok: (flow.structure ?? []).length >= 2 },
         { id: "start", label: "何から作るか", ok: Boolean(flow.startWith) },
         { id: "chords", label: "コード進行", ok: (flow.chords ?? []).some((c) => c.prog.trim()) },
-        { id: "drums", label: "ドラム仮決め", ok: Boolean(core.drums?.done) },
-        { id: "bass", label: "ベース仮決め", ok: Boolean(core.bass?.done) },
-        { id: "harmony", label: `${inst}仮決め`, ok: Boolean(core.harmony?.done) },
+        { id: "drums", label: "ドラム仮決め", ok: Boolean(core.drums?.done), self: true },
+        { id: "bass", label: "ベース仮決め", ok: Boolean(core.bass?.done), self: true },
+        { id: "harmony", label: `${inst}仮決め`, ok: Boolean(core.harmony?.done), self: true },
       ];
     }
     case 3: {
