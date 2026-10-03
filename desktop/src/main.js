@@ -4,7 +4,7 @@
 // files on disk under ~/Library/Application Support/Studio Aegis/data, and serves the UI.
 // The Studio Aegis UI sits in the middle; the side panes show sites as tabs — Splice / Suno / Web / Amazon MP3 on the left and
 // YouTube Music / Spotify on the right by default (splice.com refuses iframes, but a separate web view is a normal top-level page).
-const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, nativeImage, dialog, session, clipboard } = require("electron");
+const { app, BaseWindow, BrowserWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, nativeImage, dialog, session, clipboard } = require("electron");
 const { execFile } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -409,6 +409,108 @@ async function nowPlaying() {
   return null;
 }
 
+// ---- Play a song in the Mac's Spotify app (from a Notion idea, etc.) ----------
+//
+// The in-app Spotify can't make sound (no DRM), so the desktop Spotify app plays it:
+// 1. find the track: Spotify's own search page, loaded in a hidden window (no API key needed)
+// 2. play it with AppleScript, jumping to the noted position.
+
+let spotifySearchWin = null;
+const TRACK_CACHE_KEY = "spotify.trackCache";
+
+const norm = (t) => String(t ?? "").toLowerCase().normalize("NFKC").replace(/[\s・'’"()（）「」\-–—.,!?！？]/g, "");
+
+/** "1:23" / "01:23" / "1:02:03" / "83" / "1:23-1:40" → seconds (0 if none). */
+function parsePosition(text) {
+  const m = String(text ?? "").match(/(\d+)(?::(\d{1,2}))?(?::(\d{1,2}))?/);
+  if (!m) return 0;
+  const parts = [m[1], m[2], m[3]].filter((x) => x !== undefined).map(Number);
+  return parts.reduce((a, b) => a * 60 + b, 0);
+}
+
+async function findSpotifyTrack(title, artist) {
+  const q = [title, artist].filter(Boolean).join(" ").trim();
+  if (!q) return null;
+  const cache = store.kvGet(TRACK_CACHE_KEY) ?? {};
+  if (cache[q]) return cache[q];
+  if (!spotifySearchWin || spotifySearchWin.isDestroyed()) {
+    prepareSession(session.fromPartition("persist:spotify"));
+    spotifySearchWin = new BrowserWindow({ show: false, webPreferences: { partition: "persist:spotify", sandbox: true, contextIsolation: true } });
+    spotifySearchWin.webContents.setAudioMuted(true);
+  }
+  const wc = spotifySearchWin.webContents;
+  await wc.loadURL(`https://open.spotify.com/search/${encodeURIComponent(q)}/tracks`).catch(() => {});
+  let rows = [];
+  for (let i = 0; i < 30 && !rows.length; i++) {
+    await new Promise((r) => setTimeout(r, 400));
+    rows = await wc
+      .executeJavaScript(
+        `[...document.querySelectorAll('a[href*="/track/"]')].slice(0, 12).map((a) => {
+          const row = a.closest('[data-testid="tracklist-row"], [role="row"]');
+          return { href: a.getAttribute("href"), name: a.innerText || "", text: row ? row.innerText : a.innerText || "" };
+        })`,
+      )
+      .catch(() => []);
+  }
+  if (!rows.length) return null;
+  const a = norm(artist);
+  const t = norm(title);
+  const pick =
+    rows.find((r) => (!a || norm(r.text).includes(a)) && (!t || norm(r.name).includes(t) || t.includes(norm(r.name)))) ??
+    rows.find((r) => !a || norm(r.text).includes(a)) ??
+    rows[0];
+  const id = String(pick.href).match(/\/track\/([A-Za-z0-9]+)/)?.[1];
+  if (!id) return null;
+  const hit = { id, name: pick.name };
+  store.kvSet(TRACK_CACHE_KEY, { ...cache, [q]: hit });
+  return hit;
+}
+
+function osascript(script) {
+  return new Promise((resolve, reject) =>
+    execFile("osascript", ["-e", script], { timeout: 20_000 }, (err, _out, stderr) => (err ? reject(new Error(String(stderr || err.message))) : resolve())),
+  );
+}
+
+async function playOnSpotify({ title, artist, position }) {
+  const q = [title, artist].filter(Boolean).join(" ").trim();
+  if (!q) return { ok: false, message: "曲名がありません" };
+  const track = await findSpotifyTrack(title, artist).catch(() => null);
+  if (!track) {
+    openExternal(`https://open.spotify.com/search/${encodeURIComponent(q)}`);
+    return { ok: false, message: "Spotify で曲を特定できませんでした。検索結果を開きます" };
+  }
+  const uri = `spotify:track:${track.id}`;
+  const sec = parsePosition(position);
+  if (process.platform !== "darwin") {
+    openExternal(`https://open.spotify.com/track/${track.id}`);
+    return { ok: true, track: track.name, position: 0 };
+  }
+  try {
+    await osascript(
+      [
+        'if application "Spotify" is not running then',
+        '  tell application "Spotify" to launch',
+        "  delay 3",
+        "end if",
+        'tell application "Spotify"',
+        `  play track "${uri}"`,
+        ...(sec > 0 ? ["  delay 0.8", `  set player position to ${sec}`] : []),
+        "end tell",
+      ].join("\n"),
+    );
+    return { ok: true, track: track.name, position: sec };
+  } catch (err) {
+    const msg = String(err.message);
+    if (/-1743|not authori[sz]ed|許可/.test(msg)) {
+      return { ok: false, message: "Spotify を操作する許可がありません。システム設定 →「プライバシーとセキュリティ」→「オートメーション」で Studio Aegis の「Spotify」をオンにしてください" };
+    }
+    // Spotify app not installed etc.: open the track page instead.
+    openExternal(`https://open.spotify.com/track/${track.id}`);
+    return { ok: false, message: "Mac の Spotify アプリで再生できなかったので、曲のページを開きます" };
+  }
+}
+
 /** Open a page in Chrome / Safari specifically (falls back to the default browser). */
 function openInBrowser(browser, url) {
   if (!/^https?:\/\//.test(url)) return;
@@ -559,6 +661,9 @@ ipcMain.handle("pane:moveTab", (_e, name) => moveTab(String(name)));
 ipcMain.handle("pane:swap", () => swapSides());
 ipcMain.handle("pane:preset", (_e, name) => applyPreset(String(name)));
 ipcMain.handle("pane:nowPlaying", () => nowPlaying());
+ipcMain.handle("spotify:play", (_e, req) =>
+  playOnSpotify({ title: String(req?.title ?? "").slice(0, 300), artist: String(req?.artist ?? "").slice(0, 300), position: String(req?.position ?? "").slice(0, 40) }),
+);
 // Right-click on a tab: move it to the other side.
 ipcMain.handle("pane:tabMenu", (e, name) => {
   if (!TABS[name]) return;

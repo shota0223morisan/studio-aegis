@@ -571,3 +571,10 @@ body.pane-tabs-body { background-image: none; overflow: hidden; }
   content: ""; position: absolute; inset: 0 auto 0 0; width: var(--pct, 0%);
   background: rgba(255, 255, 255, 0.28); transition: width 0.2s ease;
 }
+
+/* Idea cards: click plays the song in Spotify; ↗ opens the Notion page */
+.idea-item { position: relative; }
+.idea-notion { position: absolute; right: 6px; bottom: 6px; width: 24px; height: 24px; font-size: 12px; opacity: 0; }
+.idea-item:hover .idea-notion, .idea-notion:focus-visible { opacity: 1; }
+.idea-card.playable:hover .idea-play { color: var(--spotify); text-shadow: 0 0 8px var(--spotify); }
+.idea-play { color: var(--spotify); font-size: 10px; }

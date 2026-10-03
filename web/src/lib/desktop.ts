@@ -64,6 +64,7 @@ export interface AegisDesktop {
   applyPreset: (name: PanePreset) => Promise<void>;
   tabMenu: (tab: PaneTab) => Promise<void>;
   nowPlaying: () => Promise<NowPlaying | null>;
+  playOnSpotify: (req: { title: string; artist: string; position?: string }) => Promise<{ ok: boolean; message?: string; track?: string; position?: number }>;
   paneDrag: (side: PaneSide, screenX: number) => void;
   paneDragEnd: () => void;
   onPaneState: (cb: (state: PaneState) => void) => () => void;

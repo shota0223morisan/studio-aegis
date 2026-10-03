@@ -1,7 +1,7 @@
 {
   "name": "studio-aegis-desktop",
   "productName": "Studio Aegis",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "description": "Studio Aegis — music-production hub for Mac",
   "main": "src/main.js",
@@ -30,7 +30,10 @@
       "category": "public.app-category.music",
       "icon": "build/icon.png",
       "identity": null,
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Notion のアイデアの曲を Mac の Spotify アプリで再生するために使います"
+      }
     },
     "extraResources": [
       {
