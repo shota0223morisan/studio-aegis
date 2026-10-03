@@ -1,7 +1,7 @@
 {
   "name": "studio-aegis-desktop",
   "productName": "Studio Aegis",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Studio Aegis — music-production hub for Mac",
   "main": "src/main.js",

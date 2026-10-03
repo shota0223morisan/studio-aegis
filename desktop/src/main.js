@@ -75,6 +75,39 @@ const PANE_MIN = 260;
 const APP_MIN = 600;
 // Sites that refuse "Electron" in the user agent get a plain Chrome one.
 const CHROME_UA = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+// Google refuses sign-in from embedded browsers ("このブラウザまたはアプリは安全でない可能性があります").
+// Its sign-in pages accept Firefox, so on those pages (only) the pane presents itself as Firefox.
+const FIREFOX_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:140.0) Gecko/20100101 Firefox/140.0";
+const GOOGLE_SIGNIN = /^(accounts\.google\.com|accounts\.youtube\.com|accounts\.google\.[a-z.]+)$/;
+
+const patchedSessions = new WeakSet();
+/** Per-site session: Chrome UA everywhere, Firefox UA (and no Chromium client hints) on Google sign-in. */
+function prepareSession(ses) {
+  if (patchedSessions.has(ses)) return;
+  patchedSessions.add(ses);
+  ses.setUserAgent(CHROME_UA);
+  ses.webRequest.onBeforeSendHeaders((details, cb) => {
+    const headers = { ...details.requestHeaders };
+    if (GOOGLE_SIGNIN.test(hostOf(details.url))) {
+      headers["User-Agent"] = FIREFOX_UA;
+      for (const k of Object.keys(headers)) if (/^sec-ch-ua/i.test(k)) delete headers[k];
+    } else if (headers["User-Agent"] === FIREFOX_UA) {
+      headers["User-Agent"] = CHROME_UA; // first request after leaving the sign-in page
+    } else return cb({});
+    cb({ requestHeaders: headers });
+  });
+}
+
+/** Keep navigator.userAgent consistent with the header while on Google sign-in pages. */
+function followGoogleSignin(contents) {
+  contents.on("did-start-navigation", (details, legacyUrl, _inPlace, legacyMain) => {
+    const url = details?.url ?? legacyUrl;
+    const main = details?.isMainFrame ?? legacyMain;
+    if (!main || details?.isSameDocument) return;
+    const ua = GOOGLE_SIGNIN.test(hostOf(url)) ? FIREFOX_UA : CHROME_UA;
+    if (contents.getUserAgent() !== ua) contents.setUserAgent(ua);
+  });
+}
 
 const TABS = {
   splice: { home: "https://splice.com/sounds", host: SPLICE_HOST, partition: "persist:splice" },
@@ -227,10 +260,11 @@ function createTabsView(side) {
 function ensureContent(name) {
   if (content[name]) return content[name];
   const tab = TABS[name];
-  session.fromPartition(tab.partition).setUserAgent(CHROME_UA);
+  prepareSession(session.fromPartition(tab.partition));
   // Own persistent session per site so logins are remembered across launches.
   const view = new WebContentsView({ webPreferences: { partition: tab.partition, contextIsolation: true, sandbox: true } });
   const contents = view.webContents;
+  followGoogleSignin(contents);
   contents.on("will-navigate", (e, url) => {
     const host = hostOf(url);
     if (tab.host.test(host) || AUTH_HOSTS.test(host) || !/^https?:/.test(url)) return;
@@ -708,6 +742,13 @@ if (!app.requestSingleInstanceLock()) {
     if (!win) return createWindow();
     if (win.isMinimized()) win.restore();
     win.focus();
+  });
+  // Sign-in popups (e.g. "Google でログイン" on Splice / Suno) are separate windows: same treatment.
+  app.on("web-contents-created", (_e, contents) => {
+    if (contents.getType() === "window" && contents.session !== session.defaultSession) {
+      prepareSession(contents.session);
+      followGoogleSignin(contents);
+    }
   });
   app.whenReady().then(start);
   app.on("window-all-closed", () => {
