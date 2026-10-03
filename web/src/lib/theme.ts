@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type ThemeId = "studio" | "mecha" | "rock" | "metal" | "electro" | "cyberpunk" | "jpop";
+export type ThemeId = "studio" | "mecha" | "rock" | "metal" | "electro" | "cyberpunk" | "jpop" | "mellow";
 
 export const THEMES: { id: ThemeId; name: string; desc: string; swatch: string[] }[] = [
   { id: "studio", name: "STUDIO", desc: "シンプル。Mac のライト/ダークに合わせる", swatch: ["#f6f5f2", "#1a1a1a", "#3b6fd8"] },
@@ -9,7 +9,8 @@ export const THEMES: { id: ThemeId; name: string; desc: string; swatch: string[]
   { id: "metal", name: "METAL", desc: "クローム×漆黒×ブラッドレッド", swatch: ["#08080a", "#c9ced6", "#c2272d"] },
   { id: "electro", name: "ELECTRO", desc: "クラブの照明。ネオン×グラデーション", swatch: ["#06051a", "#00e5ff", "#ff2bd6"] },
   { id: "cyberpunk", name: "CYBERPUNK", desc: "夜の街の HUD。イエロー×シアン×走査線", swatch: ["#0a0a10", "#fcee0a", "#00f0ff"] },
-  { id: "jpop", name: "JPOP", desc: "パステル×キラキラ×まるっこ", swatch: ["#ffe3f1", "#ff5fa2", "#b18cff"] },
+  { id: "jpop", name: "J-POP FRESH", desc: "明るく爽やか。青空×グリーン×コーラル", swatch: ["#f4fbff", "#19b97a", "#ff7a45"] },
+  { id: "mellow", name: "J-POP MELLOW", desc: "オシャレしっとり。夜×シャンパンゴールド×ローズ", swatch: ["#17110f", "#d8b07a", "#c46a7a"] },
 ];
 
 const KEY = "aegis.theme";

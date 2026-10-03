@@ -19,7 +19,6 @@ export function LayerStage({ project, flow, update }: StageProps) {
         <div className="section-head">
           <span className="sec-index">01</span>
           <h2 className="fx-en">LAYER MAP</h2>
-          <span className="muted small">上物 — どの曲のどこを活かす?</span>
           <span className="sec-line" />
           <span className="muted small">
             {done}/{parts.length} 完了
@@ -30,7 +29,7 @@ export function LayerStage({ project, flow, update }: StageProps) {
             <div key={p.id} className={`layer-row ${p.done ? "ok" : ""}`}>
               <input className="layer-name" value={p.name} onChange={(e) => set(p.id, { name: e.target.value })} aria-label="パート" />
               <RefSelect flow={flow} value={p.ref} onChange={(ref) => set(p.id, { ref })} />
-              <input value={p.point ?? ""} placeholder="参考にする所(例: Bのストリングスの白玉)" onChange={(e) => set(p.id, { point: e.target.value })} />
+              <input value={p.point ?? ""} placeholder="参考にする所" onChange={(e) => set(p.id, { point: e.target.value })} />
               <button className={`btn small ${p.done ? "on core-done" : ""}`} onClick={() => set(p.id, { done: !p.done })}>
                 {p.done ? "✓ 入れた" : "未"}
               </button>
@@ -39,7 +38,6 @@ export function LayerStage({ project, flow, update }: StageProps) {
               </button>
             </div>
           ))}
-          {!parts.length && <p className="muted small">下から足していく(ギター・ストリングス・ピアノ・ブラス・FX…)</p>}
         </div>
         <div className="arr-add">
           {LAYER_PRESETS.filter((n) => !parts.some((p) => p.name === n)).map((n) => (
@@ -55,11 +53,11 @@ export function LayerStage({ project, flow, update }: StageProps) {
               setCustom("");
             }}
           >
-            <input value={custom} placeholder="ほかのパート" onChange={(e) => setCustom(e.target.value)} />
+            <input value={custom} placeholder="＋ ほか" onChange={(e) => setCustom(e.target.value)} />
           </form>
         </div>
       </section>
-      <MidiSection projectId={project.id} flow={flow} index="02" defaultKind="melody" />
+      <MidiSection projectId={project.id} flow={flow} update={update} index="02" defaultKind="strings" />
       <section className="card">
         <IdeasPanel index="03" />
       </section>

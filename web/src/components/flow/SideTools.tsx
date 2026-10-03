@@ -37,11 +37,10 @@ export function SunoHelper({ projectId }: { projectId: string }) {
       <div className="section-head">
         <span className="sec-icon">✦</span>
         <h2 className="fx-en">SUNO</h2>
-        <span className="muted small">波形の生成</span>
         <span className="sec-line" />
       </div>
       <div className="row">
-        <input value={part} placeholder="パート(任意): 例 イントロのギター" onChange={(e) => setPart(e.target.value)} style={{ flex: 1 }} />
+        <input value={part} placeholder="パート(任意)" onChange={(e) => setPart(e.target.value)} style={{ flex: 1 }} />
         <button className="btn small" disabled={busy} onClick={() => void make()}>
           {busy ? "作成中…" : "スタイルを作る"}
         </button>
@@ -75,7 +74,6 @@ export function Parking({ stage, flow, update }: { stage: number; flow: Flow; up
       <div className="section-head">
         <span className="sec-icon">⏸</span>
         <h2 className="fx-en">PARKING</h2>
-        <span className="muted small">ミックス・音作りは後で</span>
         <span className="sec-line" />
       </div>
       <form
@@ -86,7 +84,7 @@ export function Parking({ stage, flow, update }: { stage: number; flow: Flow; up
           setText("");
         }}
       >
-        <input className="park-input" value={text} placeholder="いじりたくなったらここに書いて先へ(例: スネアの抜けが悪い)" onChange={(e) => setText(e.target.value)} />
+        <input className="park-input" value={text} placeholder="ミックスでやること → 後回し" onChange={(e) => setText(e.target.value)} />
       </form>
       {items.length > 0 && (
         <ul className="park-list">

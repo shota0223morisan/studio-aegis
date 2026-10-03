@@ -41,11 +41,10 @@ export function SimilarSongs({ projectId, flow, update }: { projectId: string; f
       <div className="section-head">
         <span className="sec-index">03</span>
         <h2 className="fx-en">SIMILAR</h2>
-        <span className="muted small">音楽的に近い曲(AI)</span>
         <span className="sec-line" />
       </div>
       <div className="similar-bar">
-        <input value={focus} placeholder="重視すること(任意): 例 ドラムのノリ / 90年代っぽさ" onChange={(e) => setFocus(e.target.value)} />
+        <input value={focus} placeholder="重視すること(任意)" onChange={(e) => setFocus(e.target.value)} />
         <button className="btn primary small" disabled={busy || !hasRefs} onClick={() => void search()} title={hasRefs ? "" : "まず参考曲を 1 曲以上入れてください"}>
           {busy ? "探しています…" : items.length ? "もう一度探す" : "近い曲を探す"}
         </button>
@@ -86,7 +85,6 @@ export function SimilarSongs({ projectId, flow, update }: { projectId: string; f
           ))}
         </ul>
       )}
-      {!items.length && !busy && <p className="muted small">参考曲を入れてから押すと、ビート感・テンポ・構成・音色が近い実在曲を 8 曲挙げます(キーは考慮しません)。</p>}
     </section>
   );
 }

@@ -24,7 +24,6 @@ export function MixingStage({ flow, update }: StageProps) {
         <div className="section-head">
           <span className="sec-index">01</span>
           <h2 className="fx-en">PRE-EXPORT CHECK</h2>
-          <span className="muted small">書き出し前チェックリスト{fromNotion ? "(Notion)" : ""}</span>
           <span className="sec-line" />
         </div>
         <ul className="check-list">
@@ -59,7 +58,7 @@ export function MixingStage({ flow, update }: StageProps) {
             setExtra("");
           }}
         >
-          <input value={extra} placeholder="＋ この曲だけのチェック項目" onChange={(e) => setExtra(e.target.value)} />
+          <input value={extra} placeholder="＋ 項目" onChange={(e) => setExtra(e.target.value)} />
         </form>
       </section>
 
@@ -68,7 +67,6 @@ export function MixingStage({ flow, update }: StageProps) {
           <span className="sec-index">02</span>
           <span className="sec-icon">{page?.icon || "🎚️"}</span>
           <h2>{page?.title ?? "Mixing Tips"}</h2>
-          <span className="muted small">Notion</span>
           <span className="sec-line" />
           <button className="btn ghost small" onClick={() => void refresh()}>
             更新
@@ -79,7 +77,7 @@ export function MixingStage({ flow, update }: StageProps) {
             </button>
           )}
         </div>
-        {page && !page.configured && <p className="muted small">設定で Notion のトークンを入れると、ここに Mixing Tips が出ます(チェックリストは内蔵の項目を使っています)。</p>}
+        {page && !page.configured && <p className="muted small">Notion 未接続(設定から)</p>}
         {page?.error && <p className="error small">{page.error}</p>}
         {page?.blocks.length ? <Blocks blocks={page.blocks.filter((b) => b.type !== "to_do")} /> : null}
       </section>

@@ -1,20 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type MidiClip } from "../lib/api";
-import { desktop } from "../lib/desktop";
 import { KIND_LABELS, MidiClipRow } from "../components/flow/MidiClipRow";
 
 const KINDS = Object.keys(KIND_LABELS) as MidiClip["kind"][];
 
-/** MIDI 保管庫: every clip from every song (AI-generated or loaded), searchable, draggable into the DAW. */
+/** MIDI 倉庫: every clip from every song (AI-generated or loaded), searchable, draggable into the DAW. */
 export function VaultPage() {
   const [items, setItems] = useState<MidiClip[]>([]);
   const [q, setQ] = useState("");
   const [kind, setKind] = useState("");
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const songInput = useRef<HTMLInputElement>(null);
+
+  async function importSong(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    try {
+      const r = await api.importSongMidi(file);
+      setItems((x) => [...r.clips, ...x]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "読み込めませんでした");
+    }
+  }
 
   useEffect(() => {
-    document.title = "MIDI 保管庫 — Studio Aegis";
+    document.title = "MIDI 倉庫 — Studio Aegis";
   }, []);
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -42,17 +53,22 @@ export function VaultPage() {
     <div className="page vault-page">
       <div className="page-head">
         <div>
-          <h1>MIDI 保管庫</h1>
-          <p className="muted small">AI で作った MIDI・読み込んだ .mid がすべてここに残ります。{desktop ? "行をそのまま DAW へドラッグできます。" : ""}</p>
+          <h1>MIDI 倉庫</h1>
         </div>
-        <button className="btn primary" onClick={() => fileInput.current?.click()}>
-          .mid を読み込む
-        </button>
+        <div className="page-actions">
+          <button className="btn" onClick={() => songInput.current?.click()} title="曲の MIDI をトラックごと(楽器ごと)に分けて入れる">
+            曲まるごと読込
+          </button>
+          <button className="btn primary" onClick={() => fileInput.current?.click()}>
+            .mid を読み込む
+          </button>
+        </div>
         <input ref={fileInput} type="file" accept=".mid,.midi,audio/midi" multiple hidden onChange={(e) => (void upload(e.target.files), (e.target.value = ""))} />
+        <input ref={songInput} type="file" accept=".mid,.midi,audio/midi" hidden onChange={(e) => (void importSong(e.target.files?.[0]), (e.target.value = ""))} />
       </div>
       <div className="vault-filters">
         <input value={q} placeholder="名前・曲名で検索" onChange={(e) => setQ(e.target.value)} />
-        <div className="segmented">
+        <div className="segmented kind-filter">
           <button className={!kind ? "active" : ""} onClick={() => setKind("")}>
             すべて
           </button>
@@ -93,7 +109,7 @@ export function VaultPage() {
                   </select>
                   <button
                     className="icon-btn danger"
-                    title="保管庫から完全に削除"
+                    title="倉庫から削除"
                     onClick={async () => {
                       if (!window.confirm(`「${c.name}」を削除しますか?(元に戻せません)`)) return;
                       await api.deleteMidi(c.id);
@@ -108,7 +124,7 @@ export function VaultPage() {
           ))}
         </ul>
       ) : (
-        <p className="muted empty">まだ MIDI がありません。曲の FRAME / LAYER で AI に作らせるか、.mid を読み込んでください。</p>
+        <p className="muted empty">空です</p>
       )}
     </div>
   );

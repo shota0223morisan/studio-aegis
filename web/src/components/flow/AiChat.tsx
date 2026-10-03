@@ -86,7 +86,6 @@ export function AiChat({ projectId, stage, quick, placeholder }: { projectId: st
       <div className="section-head">
         <span className="sec-icon">✦</span>
         <h2 className="fx-en">AEGIS AI</h2>
-        <span className="muted small">Claude(サブスク)</span>
         <span className="sec-line" />
         {messages.length > 0 && (
           <button
@@ -107,7 +106,6 @@ export function AiChat({ projectId, stage, quick, placeholder }: { projectId: st
         </p>
       )}
       <div className="ai-list" ref={list}>
-        {messages.length === 0 && streaming === null && <p className="muted small ai-empty">このステージのことを何でも相談できます。下のボタンからでも。</p>}
         {messages.map((m) =>
           m.role === "user" ? (
             <div key={m.id} className="ai-msg me">

@@ -133,12 +133,20 @@ export interface MidiNote {
   v: number;
 }
 
+export type MidiKind = "drums" | "bass" | "piano" | "guitar" | "strings" | "brass" | "synth" | "chords" | "melody" | "other";
+
+export interface MidiTrack {
+  name: string;
+  channel: number;
+  notes: MidiNote[];
+}
+
 export interface MidiClip {
   id: string;
   projectId: string | null;
   projectName: string | null;
   name: string;
-  kind: "drums" | "bass" | "chords" | "melody" | "other";
+  kind: MidiKind;
   bpm: number | null;
   bars: number | null;
   source: "ai" | "upload";
@@ -255,7 +263,7 @@ export const api = {
   aiClear: (id: string, stage: number) => request(`/api/projects/${id}/ai?stage=${stage}`, json("DELETE")),
   aiSimilar: (id: string, focus?: string) => request<{ items: SimilarSong[]; at: string }>(`/api/projects/${id}/ai/similar`, json("POST", { focus })),
   aiSuno: (id: string, part?: string) => request<{ style: string; exclude: string; note: string }>(`/api/projects/${id}/ai/suno`, json("POST", { part })),
-  aiMidi: (id: string, body: { kind: string; bars: number; prompt: string; section?: string }) =>
+  aiMidi: (id: string, body: { kind: string; bars: number; prompt: string; section?: string; refClipId?: string }) =>
     request<{ clip: MidiClip; comment: string }>(`/api/projects/${id}/ai/midi`, json("POST", body)),
 
   listMidi: (params: { project?: string; kind?: string; q?: string }) =>
@@ -263,6 +271,13 @@ export const api = {
   updateMidi: (clipId: string, patch: { name?: string; kind?: string; projectId?: null }) => request<MidiClip>(`/api/midi/${clipId}`, json("PATCH", patch)),
   deleteMidi: (clipId: string) => request(`/api/midi/${clipId}`, json("DELETE")),
   copyMidi: (clipId: string, projectId: string) => request<MidiClip>(`/api/midi/${clipId}/copy`, json("POST", { projectId })),
+  createMidi: (body: { projectId?: string; name: string; kind: MidiKind; bpm: number; bars: number; tracks: MidiTrack[]; prompt?: string }) =>
+    request<MidiClip>("/api/midi", json("POST", body)),
+  importSongMidi: (file: File, projectId?: string) =>
+    request<{ bpm: number | null; bars: number; clips: MidiClip[]; tracks: (MidiTrack & { kind: MidiKind })[] }>(
+      `/api/midi/import?${new URLSearchParams({ name: file.name, ...(projectId ? { project: projectId } : {}) })}`,
+      { method: "PUT", body: file },
+    ),
   uploadMidi: (file: File, projectId?: string) =>
     request<MidiClip>(`/api/midi?${new URLSearchParams({ name: file.name, ...(projectId ? { project: projectId } : {}) })}`, { method: "PUT", body: file }),
 

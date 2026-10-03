@@ -27,7 +27,7 @@ const STAGES = {
   5: { en: "SHIP", jp: "書き出し・提出", goal: "mp3 で書き出してアプリに入れ、提出して完了" },
 };
 
-const MIDI_KINDS = ["drums", "bass", "chords", "melody", "other"];
+const MIDI_KINDS = ["drums", "bass", "piano", "guitar", "strings", "brass", "synth", "chords", "melody", "other"];
 const MAX_MIDI_BYTES = 5 * 1024 * 1024;
 const PPQ = 480;
 
@@ -363,7 +363,11 @@ function createFlowRouter(store) {
       }
       const id = newId();
       fs.writeFileSync(midiPath(id), buf);
-      const kind = MIDI_KINDS.includes(req.query.kind) ? req.query.kind : guessKind(parsed.tracks);
+      const kind = MIDI_KINDS.includes(req.query.kind)
+        ? req.query.kind
+        : parsed.tracks.length === 1
+          ? classifyTrack({ ...parsed.tracks[0], name: `${parsed.tracks[0].name} ${name}` })
+          : guessKind(parsed.tracks);
       res.status(201).json(
         insertClip({
           id,
@@ -383,13 +387,101 @@ function createFlowRouter(store) {
     }
   });
 
-  /** Generate MIDI with Claude. Body: { kind, bars, prompt, section? } */
+  /** Save MIDI made in the app (chord-based generation, humanize). Body: { projectId?, name, kind, bpm, bars, tracks } */
+  router.post("/midi", (req, res) => {
+    const b = req.body ?? {};
+    const bpm = Math.max(20, Math.min(400, Number(b.bpm) || 120));
+    const bars = Math.max(1, Math.min(512, Math.round(Number(b.bars) || 1)));
+    const tracks = (Array.isArray(b.tracks) ? b.tracks : []).slice(0, 16).map((t, i) => ({
+      name: String(t?.name ?? `Track ${i + 1}`).slice(0, 60),
+      channel: Number(t?.channel) === 9 ? 9 : 0,
+      notes: normalizeTracks([{ notes: t?.notes, drums: Number(t?.channel) === 9 }], bars * 4)[0].notes,
+    }));
+    if (!tracks.some((t) => t.notes.length)) return res.status(400).json({ error: "ノートがありません" });
+    const project = typeof b.projectId === "string" ? getProject(b.projectId) : null;
+    const id = newId();
+    fs.writeFileSync(midiPath(id), toMidiFile(tracks, bpm));
+    res.status(201).json(
+      insertClip({
+        id,
+        project_id: project?.id ?? null,
+        name: str(b.name, 200)?.trim() || "MIDI",
+        kind: MIDI_KINDS.includes(b.kind) ? b.kind : guessKind(tracks),
+        bpm,
+        bars,
+        data: JSON.stringify({ tracks }),
+        source: str(b.source, 20) === "ai" ? "ai" : "upload",
+        prompt: str(b.prompt, 500) ?? "",
+        created_at: now(),
+      }),
+    );
+  });
+
+  /**
+   * A whole song's MIDI (raw body, ?name=&project=): split into one clip per instrument (from track
+   * names / channels), all aligned to bar 1. Returns the clips plus every track for analysis.
+   */
+  router.put("/midi/import", async (req, res, next) => {
+    try {
+      const fileName = str(req.query.name, 300)?.trim() || "song.mid";
+      if (!/\.midi?$/i.test(fileName)) return res.status(400).json({ error: "MIDI ファイル(.mid)を選んでください" });
+      const project = typeof req.query.project === "string" && req.query.project ? getProject(req.query.project) : null;
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > MAX_MIDI_BYTES * 4) return res.status(413).json({ error: "MIDI ファイルが大きすぎます" });
+        chunks.push(chunk);
+      }
+      let parsed;
+      try {
+        parsed = fromMidiFile(Buffer.concat(chunks));
+      } catch {
+        return res.status(400).json({ error: "MIDI ファイルを読み取れませんでした" });
+      }
+      const bpm = parsed.bpm || 120;
+      const base = project?.name || fileName.replace(/\.midi?$/i, "");
+      // Same-instrument tracks with the same name are kept together (e.g. a split drum kit stays one clip).
+      const groups = new Map();
+      for (const t of parsed.tracks) {
+        const kind = classifyTrack(t);
+        const key = kind === "drums" ? "drums" : `${kind}:${t.name}`;
+        if (!groups.has(key)) groups.set(key, { kind, name: kind === "drums" ? "Drums" : t.name, tracks: [] });
+        groups.get(key).tracks.push(t);
+      }
+      const clips = [];
+      for (const g of groups.values()) {
+        const id = newId();
+        fs.writeFileSync(midiPath(id), toMidiFile(g.tracks, bpm));
+        clips.push(
+          insertClip({
+            id,
+            project_id: project?.id ?? null,
+            name: `${base} · ${g.name}`,
+            kind: g.kind,
+            bpm,
+            bars: parsed.bars,
+            data: JSON.stringify({ tracks: g.tracks }),
+            source: "upload",
+            prompt: fileName,
+            created_at: now(),
+          }),
+        );
+      }
+      res.status(201).json({ bpm: parsed.bpm, bars: parsed.bars, clips, tracks: parsed.tracks.map((t) => ({ ...t, kind: classifyTrack(t) })) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** Generate MIDI with Claude. Body: { kind, bars, prompt, section?, refClipId? } */
   router.post("/projects/:id/ai/midi", loadProject, async (req, res) => {
     const p = res.locals.project;
     const kind = MIDI_KINDS.includes(req.body?.kind) ? req.body.kind : "chords";
     const bars = Math.max(1, Math.min(16, Number(req.body?.bars) || 4));
     const ask = str(req.body?.prompt, 2000)?.trim() ?? "";
     const section = str(req.body?.section, 100)?.trim() ?? "";
+    const ref = typeof req.body?.refClipId === "string" ? getClip(req.body.refClipId) : null;
     const flow = parseFlow(p);
     const bpm = Number(String(flow.analysis?.bpm ?? "").match(/\d+(\.\d+)?/)?.[0]) || 120;
     const schema = {
@@ -427,15 +519,22 @@ function createFlowRouter(store) {
     const KIND_HINT = {
       drums: "ドラムパターン。GM ドラムマップ(36 キック, 38 スネア, 42 クローズドハット, 46 オープンハット, 49 クラッシュ, 51 ライド, 45/47/50 タム)。人間らしいベロシティの揺れを付ける",
       bass: "ベースライン(E1〜G3 あたり)",
+      piano: "ピアノ(両手・C2〜C6)。コード進行に沿ったバッキング",
+      guitar: "ギター(E2〜E5・ギターで弾けるボイシング)。コード進行に沿ったバッキング/リフ",
+      strings: "ストリングス(C3〜C6・白玉や対旋律)",
+      brass: "ブラス(C3〜C6・キメやヒット)",
+      synth: "シンセ(パッド/リード/アルペジオ)",
       chords: "コード(ボイシング込み・C3〜C5 あたり)。コード進行が決まっていればそれに従う",
       melody: "メロディ/リフ(上物)",
       other: "フレーズ",
     };
+    const refNote = ref ? referenceNote(serializeClip(ref)) : "";
     const prompt =
       `${songContext(db, p)}\n\n` +
       `この曲用の MIDI を作ってください。種類: ${KIND_HINT[kind]}。長さ: ${bars} 小節(4/4・合計 ${bars * 4} 拍)。テンポ: ${bpm}。` +
       (section ? `セクション: ${section}。` : "") +
       (ask ? `\n本人の希望: ${ask}` : "") +
+      refNote +
       "\nすべてのノートは 0 以上 " + bars * 4 + " 拍未満に収めること。DAW に貼ってそのまま使える、音楽的に自然なものを。";
     try {
       const out = await ai.run({ system: systemFor(p.stage), prompt, schema, model: prefs().aiModel, signal: abortOnClose(req, res) });
@@ -453,7 +552,7 @@ function createFlowRouter(store) {
           bars,
           data: JSON.stringify({ tracks }),
           source: "ai",
-          prompt: [section, ask].filter(Boolean).join(" / "),
+          prompt: [section, ask, ref && `参考: ${ref.name}`].filter(Boolean).join(" / "),
           created_at: now(),
         }),
         comment: str(out.structured?.comment, 1000) ?? "",
@@ -539,4 +638,42 @@ function guessKind(tracks) {
   return "melody";
 }
 
-module.exports = { createFlowRouter, STAGES, DEFAULT_PREFS, toMidiFile, fromMidiFile, normalizeTracks };
+// Instrument from the track name (Japanese / English / common DAW abbreviations), then the notes.
+const KIND_PATTERNS = [
+  ["drums", /drum|kick|snare|hi.?hat|\bhh\b|\bbd\b|\bsd\b|tom|cymbal|crash|ride|perc|kit|ドラム|キック|スネア|ハット|タム|シンバル|パーカッション/i],
+  ["bass", /bass|\bbs\b|\bba\b|ベース|808/i],
+  ["piano", /piano|\bpf\b|\bpno\b|keys?\b|rhodes|wurli|e\.?\s?p(iano)?\b|\bep\b|organ|clav|ピアノ|オルガン|キーボード|エレピ/i],
+  ["guitar", /guitar|\bgtr?\b|\bgt\b|\b[ae]\.?\s?g\b|ギター/i],
+  ["strings", /string|\bstr\b|violin|vln|viola|cello|\bvc\b|contrabass|ストリングス|弦|バイオリン|チェロ/i],
+  ["brass", /brass|horn|trumpet|\btp\b|trombone|\btb\b|sax|ブラス|ホーン|トランペット|サックス/i],
+  ["synth", /synth|pad|lead|pluck|arp|saw|シンセ|パッド|リード/i],
+  ["melody", /vocal|\bvo\b|\bvox\b|melody|\bmel\b|guide|ボーカル|ボーカル|歌|メロ|主旋律/i],
+];
+
+function classifyTrack(t) {
+  if (t.channel === 9) return "drums";
+  for (const [kind, re] of KIND_PATTERNS) if (re.test(t.name ?? "")) return kind;
+  return guessKind([t]);
+}
+
+/** A reference clip for the AI: note mapping (drum kit!), feel, and the notes themselves. */
+function referenceNote(clip) {
+  const notes = clip.tracks.flatMap((t) => t.notes.map((n) => ({ ...n, drum: t.channel === 9 }))).sort((a, b) => a.s - b.s);
+  if (!notes.length) return "";
+  const pitches = new Map();
+  for (const n of notes) pitches.set(n.p, (pitches.get(n.p) ?? 0) + 1);
+  const vel = notes.map((n) => n.v);
+  const list = notes
+    .slice(0, 320)
+    .map((n) => `${n.p}@${+n.s.toFixed(3)}:${+n.d.toFixed(3)}:${n.v}`)
+    .join(" ");
+  return (
+    `\n\n【参考 MIDI「${clip.name}」】(${clip.bars ?? "?"} 小節・${clip.bpm ? Math.round(clip.bpm) : "?"} BPM)` +
+    `\n使っているノート番号(回数): ${[...pitches].sort((a, b) => b[1] - a[1]).map(([p, c]) => `${p}(${c})`).join(", ")}` +
+    `\nベロシティ: ${Math.min(...vel)}〜${Math.max(...vel)}` +
+    `\nノート(ノート番号@開始拍:長さ:ベロシティ): ${list}${notes.length > 320 ? " …" : ""}` +
+    "\nこの参考 MIDI のノート番号の割り当て(特にドラムはこの番号どおりに)・リズムの癖・ベロシティの付け方を踏襲すること。本人の希望が「ヒューマナイズ」「アレンジ」などの場合は、この MIDI を元に作り変える。"
+  );
+}
+
+module.exports = { createFlowRouter, classifyTrack, STAGES, DEFAULT_PREFS, toMidiFile, fromMidiFile, normalizeTracks };

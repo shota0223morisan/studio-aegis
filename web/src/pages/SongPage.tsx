@@ -132,6 +132,19 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
   }
 
   const gateChecks = checksFor(view);
+
+  /** Tick a check by hand (MIXING items are the pre-export checklist / parked items). */
+  function toggleCheck(c: { id: string; label: string }) {
+    if (view === 4) {
+      if (c.id.startsWith("park-")) {
+        const id = c.id.slice(5);
+        update((f) => ({ ...f, parked: (f.parked ?? []).map((p) => (p.id === id ? { ...p, done: !p.done } : p)) }));
+      } else update((f) => ({ ...f, mixChecks: { ...f.mixChecks, [c.label]: !f.mixChecks?.[c.label] } }));
+      return;
+    }
+    const k = `${view}:${c.id}`;
+    update((f) => ({ ...f, manual: { ...f.manual, [k]: !f.manual?.[k] } }));
+  }
   const memo = <StageMemo stage={view} initial={flow.notes?.[view] ?? ""} onSave={(text) => update((f) => ({ ...f, notes: { ...f.notes, [view]: text } }))} />;
 
   return (
@@ -140,7 +153,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
         project={project}
         onChange={patch}
         onDelete={async () => {
-          if (!window.confirm(`「${project.name}」を削除しますか?\nメモ・追加したファイルもすべて削除されます(MIDI は保管庫に残ります)。`)) return;
+          if (!window.confirm(`「${project.name}」を削除しますか?\nメモ・追加したファイルもすべて削除されます(MIDI は倉庫に残ります)。`)) return;
           await api.deleteProject(project.id);
           await reload();
           navigate(project.clientId ? `/c/${project.clientId}` : "/");
@@ -182,10 +195,14 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
           {view === 2 && <FrameStage {...props} />}
           {view === 3 && <LayerStage {...props} />}
           {view === 4 && <MixingStage {...props} />}
-          {view === 5 && <ShipStage {...props} onSubmit={(on) => void setSubmitted(on)} canSubmit={checksFor(5).every((c) => c.ok)} />}
+          {view === 5 && (
+            <ShipStage {...props} onSubmit={(on) => void setSubmitted(on)} canSubmit={checksFor(5).every((c) => c.ok)} onManual={() => toggleCheck({ id: "master", label: "" })} />
+          )}
         </div>
         <aside className="flow-side">
-          {view < 5 && <GatePanel stage={view} checks={gateChecks} current={current} mode={prefs.gate} onAdvance={(m) => void advance(m)} compact={view === 4} />}
+          {view < 5 && (
+            <GatePanel stage={view} checks={gateChecks} current={current} mode={prefs.gate} onAdvance={(m) => void advance(m)} onToggle={toggleCheck} compact={view === 4} />
+          )}
           <AiChat projectId={project.id} stage={view} quick={QUICK[view] ?? []} />
           {(view === 2 || view === 3) && <SunoHelper projectId={project.id} />}
           {(view === 2 || view === 3) && <Parking stage={view} flow={flow} update={update} />}

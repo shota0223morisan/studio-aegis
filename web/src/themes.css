@@ -266,69 +266,106 @@
 }
 
 /* =========================================================================================
- * JPOP — idol pastel: pink × lavender × mint, rounded, stickers, sparkles
+ * J-POP FRESH — bright and airy: open sky, fresh green, a coral accent, clean bold type
  * ======================================================================================= */
 [data-theme="jpop"] {
-  --bg: #fff4fa;
+  --bg: #f4fbff;
   --bg-image:
-    radial-gradient(circle at 20px 20px, rgba(255, 95, 162, 0.13) 3px, transparent 3.6px),
-    linear-gradient(160deg, #ffe3f1 0%, #efe4ff 45%, #dcf7f1 100%);
+    radial-gradient(60% 50% at 0% 0%, rgba(31, 181, 232, 0.16), transparent 70%),
+    radial-gradient(50% 45% at 100% 10%, rgba(255, 214, 77, 0.18), transparent 70%),
+    radial-gradient(60% 50% at 80% 100%, rgba(25, 185, 122, 0.14), transparent 70%);
   --surface: #ffffff;
-  --surface-2: #fff0f7;
-  --border: #f5cfe3;
-  --text: #4b2747;
-  --muted: #9b7896;
-  --accent: #ff5fa2;
-  --accent-bg: linear-gradient(135deg, #ff86bd, #ff5fa2 50%, #b18cff);
+  --surface-2: #eef7f8;
+  --border: #d8eaee;
+  --text: #0f2a3a;
+  --muted: #5c7685;
+  --accent: #14a96e;
+  --accent-bg: linear-gradient(120deg, #22c98a, #1fb5e8);
   --accent-text: #ffffff;
-  --accent-2: #8a6cff;
-  --danger: #ef476f;
-  --focus: #b18cff;
-  --radius: 24px;
-  --radius-btn: 999px;
-  --radius-input: 14px;
-  --font: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
-  --font-display: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
-  --font-brand: "Hachi Maru Pop", "M PLUS Rounded 1c", cursive;
+  --accent-2: #ff7a45;
+  --danger: #e5484d;
+  --focus: #1fb5e8;
+  --radius: 18px;
+  --radius-btn: 12px;
+  --radius-input: 12px;
+  --font: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  --font-display: "Outfit", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --font-brand: "Outfit", "Hiragino Sans", sans-serif;
   --display-weight: 800;
   --display-transform: none;
-  --display-spacing: 0.02em;
+  --display-spacing: 0.01em;
   --card-bg: var(--surface);
-  --card-shadow: 0 6px 0 #ffd3e8, 0 16px 34px rgba(255, 95, 162, 0.14);
-  --topbar-bg: rgba(255, 255, 255, 0.72);
+  --card-shadow: 0 1px 0 rgba(15, 42, 58, 0.04), 0 12px 32px -12px rgba(20, 110, 140, 0.18);
+  --topbar-bg: rgba(255, 255, 255, 0.78);
   --eq-play: running;
   color-scheme: light;
 }
-[data-theme="jpop"] body { background-size: 40px 40px, auto; font-weight: 500; }
-[data-theme="jpop"] .card,
-[data-theme="jpop"] .project-card { border: 2px solid #fff; }
-[data-theme="jpop"] .brand-text,
-[data-theme="jpop"] h1 {
-  font-family: var(--font-brand); font-weight: 400;
-  background: linear-gradient(90deg, #ff5fa2, #b18cff 60%, #52c7e8);
+[data-theme="jpop"] .brand-text {
+  font-weight: 800; letter-spacing: 0.04em;
+  background: linear-gradient(90deg, #14a96e, #1fb5e8 55%, #ff7a45);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-[data-theme="jpop"] .brand-text { font-size: 21px; }
-[data-theme="jpop"] .brand::after { content: "✦"; color: #ffc93c; font-size: 14px; animation: twinkle 1.6s ease-in-out infinite; }
-@keyframes twinkle { 0%, 100% { opacity: 0.35; transform: scale(0.8) rotate(0deg); } 50% { opacity: 1; transform: scale(1.2) rotate(20deg); } }
-[data-theme="jpop"] h1 { font-size: 36px; }
-[data-theme="jpop"] h2::before { content: "♪ "; color: var(--accent); }
-[data-theme="jpop"] .section-head h2::before { content: none; }
-[data-theme="jpop"] .btn.primary { box-shadow: 0 4px 0 #e04a8b; }
-[data-theme="jpop"] .btn.primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 0 #e04a8b; filter: none; }
-[data-theme="jpop"] .btn.primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 #e04a8b; }
-[data-theme="jpop"] .project-card:hover { transform: translateY(-5px) rotate(0.6deg); border-color: #fff; box-shadow: 0 10px 0 #ffc2df, 0 22px 40px rgba(255, 95, 162, 0.22); }
-[data-theme="jpop"] .tag { background: #ffe3f1; border-color: transparent; color: #e04a8b; }
-[data-theme="jpop"] .dropzone { border-color: #ffb3d6; border-width: 2px; }
-[data-theme="jpop"] .eq i { border-radius: 3px; }
+[data-theme="jpop"] h1 { font-size: 34px; letter-spacing: 0; }
+[data-theme="jpop"] .card { border-color: transparent; }
+[data-theme="jpop"] .btn.primary { box-shadow: 0 6px 18px -6px rgba(31, 181, 232, 0.6); }
+[data-theme="jpop"] .btn.primary:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+[data-theme="jpop"] .project-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px -14px rgba(20, 110, 140, 0.35); }
+[data-theme="jpop"] .sec-index { color: var(--accent-2); }
+[data-theme="jpop"] .tag { background: #e6f7f0; border-color: transparent; color: #0f8a5a; }
 [data-theme="jpop"] .thumb-placeholder {
-  font-weight: 400; color: hsl(var(--hue) 70% 58%);
-  background:
-    radial-gradient(circle at 12px 12px, rgba(255, 255, 255, 0.7) 2.5px, transparent 3px) 0 0 / 24px 24px,
-    linear-gradient(135deg, hsl(var(--hue) 95% 87%), hsl(calc(var(--hue) + 60) 85% 89%));
-  text-shadow: 0 3px 0 #fff;
+  color: #fff; font-weight: 800;
+  background: linear-gradient(135deg, hsl(var(--hue) 75% 62%), hsl(calc(var(--hue) + 50) 80% 60%));
 }
-[data-theme="jpop"] .toast { box-shadow: 0 6px 0 #e04a8b; }
+[data-theme="jpop"] .song-hero-mark { -webkit-text-stroke-color: rgba(31, 181, 232, 0.35); }
+
+/* =========================================================================================
+ * J-POP MELLOW — stylish and mellow: late night, champagne gold, dusty rose, mincho type
+ * ======================================================================================= */
+[data-theme="mellow"] {
+  --bg: #16100e;
+  --bg-image:
+    radial-gradient(55% 45% at 85% 0%, rgba(216, 176, 122, 0.14), transparent 70%),
+    radial-gradient(50% 50% at 0% 100%, rgba(196, 106, 122, 0.12), transparent 70%),
+    linear-gradient(180deg, #16100e, #120d0c);
+  --surface: #1f1715;
+  --surface-2: #29201d;
+  --border: #3a2d28;
+  --text: #f2e8dc;
+  --muted: #b09d8e;
+  --accent: #d8b07a;
+  --accent-bg: linear-gradient(135deg, #e9cd9c, #c99a5b);
+  --accent-text: #1a120f;
+  --accent-2: #d08292;
+  --danger: #e06c6c;
+  --focus: #d8b07a;
+  --radius: 14px;
+  --radius-btn: 999px;
+  --radius-input: 10px;
+  --font: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  --font-display: "Shippori Mincho", "Hiragino Mincho ProN", serif;
+  --font-brand: "Cormorant Garamond", "Shippori Mincho", serif;
+  --display-weight: 600;
+  --display-transform: none;
+  --display-spacing: 0.05em;
+  --card-bg: linear-gradient(180deg, #211816, #1b1412);
+  --card-shadow: 0 0 0 1px rgba(216, 176, 122, 0.07), 0 20px 40px -20px rgba(0, 0, 0, 0.7);
+  --topbar-bg: rgba(22, 16, 14, 0.82);
+  --eq-play: running;
+  color-scheme: dark;
+}
+[data-theme="mellow"] .brand-text { font-style: italic; font-weight: 600; font-size: 21px; letter-spacing: 0.06em; color: #ecd2a6; }
+[data-theme="mellow"] h1 { font-size: 32px; font-weight: 700; }
+[data-theme="mellow"] .fx-en, [data-theme="mellow"] .rail-en, [data-theme="mellow"] .mission-tag { font-family: var(--font-brand); font-style: italic; letter-spacing: 0.12em; }
+[data-theme="mellow"] .fx-en { font-size: 16px; text-transform: none; }
+[data-theme="mellow"] .card { border-color: rgba(216, 176, 122, 0.12); }
+[data-theme="mellow"] .sec-line { background: linear-gradient(90deg, rgba(216, 176, 122, 0.45), transparent); }
+[data-theme="mellow"] .btn.primary { box-shadow: 0 6px 20px -8px rgba(216, 176, 122, 0.55); }
+[data-theme="mellow"] .project-card:hover { transform: translateY(-3px); border-color: rgba(216, 176, 122, 0.4); }
+[data-theme="mellow"] .thumb-placeholder {
+  font-family: var(--font-brand); font-style: italic; color: #ecd2a6;
+  background: radial-gradient(circle at 30% 20%, hsl(var(--hue) 30% 26%), hsl(calc(var(--hue) + 30) 25% 12%));
+}
+[data-theme="mellow"] .song-hero-mark { font-family: var(--font-display); -webkit-text-stroke-color: rgba(216, 176, 122, 0.35); }
 
 /* =========================================================================================
  * MECHA — sister skin of Lyric Machine: HUD panels, cyan × magenta, corner brackets

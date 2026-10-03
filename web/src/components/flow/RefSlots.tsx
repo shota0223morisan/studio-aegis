@@ -33,10 +33,9 @@ export function RefSlots({ flow, update, files }: { flow: Flow; update: (fn: (f:
       <div className="section-head">
         <span className="sec-index">02</span>
         <h2 className="fx-en">REF SLOTS</h2>
-        <span className="muted small">参考曲 3 曲 — どこを活かすか</span>
         <span className="sec-line" />
         <button className="btn ghost small" onClick={() => setSlot(count, { title: "", artist: "" })} title="4 曲目以降を追加">
-          ＋ 枠を追加
+          ＋ 枠
         </button>
       </div>
       <div className="ref-slots">
@@ -138,7 +137,7 @@ function Slot({ index, slot, audio, onChange }: { index: number; slot: RefSlot; 
       {error && <p className="error small">{error}</p>}
       <label className="ref-use">
         <span>活かす所</span>
-        <AutoTextarea rows={2} value={slot.use ?? ""} placeholder="例: サビ頭の開放感 / ドラムの推進力" onChange={(e) => onChange({ use: e.target.value })} />
+        <AutoTextarea rows={2} value={slot.use ?? ""} placeholder="" onChange={(e) => onChange({ use: e.target.value })} />
       </label>
       {filled(slot) && (
         <button className="icon-btn danger ref-clear" onClick={() => onChange(null)} title="この枠を空にする">

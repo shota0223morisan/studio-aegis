@@ -22,18 +22,17 @@ export function DecodeStage({ project, flow, update, session, onFilesChange, pat
             await api.updateProject(project.id, { brief: v });
             patchProject({ brief: v });
           }}
-          placeholder={"先方から届いた依頼・修正指示を貼り付け\n\n- 尺: \n- 納期: \n- イメージ: \n- リファレンス: "}
+          placeholder="先方からの依頼・修正指示"
         >
           <FilesSection bare only={["client_ref"]} projectId={project.id} files={project.files} maxUploadBytes={session.maxUploadBytes} onFilesChange={onFilesChange} />
         </MarkdownMemo>
         <div className="decode-mission">
           <label>
             <span className="fx-en">MISSION</span>
-            <span className="muted small">先方が本当に欲しいものを一言で</span>
           </label>
           <input
             value={flow.mission ?? ""}
-            placeholder="例: サビで一気に視界が開ける疾走感。歌が主役で、ギターは控えめ"
+            placeholder="先方が本当に欲しいもの"
             onChange={(e) => update((f) => ({ ...f, mission: e.target.value }))}
           />
         </div>
@@ -45,27 +44,47 @@ export function DecodeStage({ project, flow, update, session, onFilesChange, pat
         <div className="section-head">
           <span className="sec-index">04</span>
           <h2 className="fx-en">ANALYSIS</h2>
-          <span className="muted small">3 曲から決めること</span>
           <span className="sec-line" />
         </div>
         <div className="analysis-grid">
           <label>
             <span>テンポ(BPM)</span>
-            <input value={a.bpm ?? ""} placeholder={suggestBpm(flow) ?? "例: 128"} onChange={(e) => setA({ bpm: e.target.value })} />
+            <input value={a.bpm ?? ""} placeholder={suggestBpm(flow) ?? ""} onChange={(e) => setA({ bpm: e.target.value })} />
+            <RefTempos flow={flow} bpm={a.bpm} onPick={(bpm) => setA({ bpm })} />
           </label>
           <label>
             <span>ビート感</span>
-            <input value={a.beat ?? ""} placeholder="例: 4つ打ち+裏ハット / ハーフタイム" onChange={(e) => setA({ beat: e.target.value })} />
+            <input value={a.beat ?? ""} placeholder="" onChange={(e) => setA({ beat: e.target.value })} />
           </label>
           <label className="wide">
             <span>構成のヒント</span>
-            <input value={a.form ?? ""} placeholder="例: イントロ短め、サビ始まり、間奏でブレイク" onChange={(e) => setA({ form: e.target.value })} />
+            <input value={a.form ?? ""} placeholder="" onChange={(e) => setA({ form: e.target.value })} />
           </label>
         </div>
       </section>
 
       <SimilarSongs projectId={project.id} flow={flow} update={update} />
     </>
+  );
+}
+
+/** The references' tempos next to the song's, to compare at a glance (click to use one). */
+function RefTempos({ flow, bpm, onPick }: { flow: StageProps["flow"]; bpm?: string; onPick: (bpm: string) => void }) {
+  const mine = Number(String(bpm ?? "").match(/\d+(\.\d+)?/)?.[0]) || 0;
+  const refs = (flow.refs ?? []).map((r, i) => ({ key: "ABCDEFGH"[i], bpm: Number(r.bpm) || 0 })).filter((r) => r.bpm > 0);
+  if (!refs.length) return null;
+  return (
+    <span className="ref-tempos">
+      {refs.map((r) => {
+        const diff = mine ? Math.round(mine - r.bpm) : null;
+        return (
+          <button key={r.key} type="button" className="chip-btn" onClick={() => onPick(String(r.bpm))} title="このテンポにする">
+            {r.key} {r.bpm}
+            {diff !== null && diff !== 0 && <small className={Math.abs(diff) > 15 ? "far" : ""}> {diff > 0 ? `+${diff}` : diff}</small>}
+          </button>
+        );
+      })}
+    </span>
   );
 }
 

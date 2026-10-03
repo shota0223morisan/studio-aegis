@@ -3,7 +3,18 @@ import type { MidiClip } from "../../lib/api";
 import { desktop } from "../../lib/desktop";
 import { playClip } from "../../lib/midiPlayer";
 
-export const KIND_LABELS: Record<MidiClip["kind"], string> = { drums: "ドラム", bass: "ベース", chords: "コード", melody: "メロ/リフ", other: "その他" };
+export const KIND_LABELS: Record<MidiClip["kind"], string> = {
+  drums: "ドラム",
+  bass: "ベース",
+  piano: "ピアノ",
+  guitar: "ギター",
+  strings: "ストリングス",
+  brass: "ブラス",
+  synth: "シンセ",
+  chords: "コード",
+  melody: "メロ",
+  other: "その他",
+};
 
 /** Mini piano roll: notes as bars, drums as lanes. */
 export function PianoRoll({ clip }: { clip: MidiClip }) {
@@ -47,7 +58,7 @@ export function MidiClipRow({ clip, extra, onRename }: { clip: MidiClip; extra?:
         e.preventDefault();
         desktop.dragMidi(clip.id);
       }}
-      title={desktop ? "そのまま DAW(Logic / Ableton など)にドラッグできます" : undefined}
+      title={desktop ? "DAW へドラッグ" : undefined}
     >
       <span className={`midi-kind k-${clip.kind}`}>{KIND_LABELS[clip.kind]}</span>
       <div className="midi-main">

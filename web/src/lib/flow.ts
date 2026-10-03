@@ -71,6 +71,8 @@ export interface Flow {
   analysis?: { bpm?: string; beat?: string; form?: string };
   similar?: { items: SimilarSong[]; at: string };
   structure?: Section[];
+  /** Key for chord → MIDI (semitones above C; major, or a minor song's relative major). */
+  key?: number;
   startWith?: string;
   chords?: { section: string; prog: string }[];
   core?: { drums?: CorePart; bass?: CorePart; harmony?: CorePart };
@@ -84,6 +86,8 @@ export interface Flow {
   notified?: Record<string, boolean>;
   /** Soft-lock mode: stages left with open items. */
   overrides?: { stage: number; at: string; missing: string[] }[];
+  /** Checks ticked by hand ("決めた", done in the DAW) — keyed "stage:checkId". */
+  manual?: Record<string, boolean>;
   stageAt?: Record<string, string>;
 }
 
@@ -93,6 +97,10 @@ export interface Check {
   id: string;
   label: string;
   ok: boolean;
+  /** Satisfied by what's written in the app (otherwise only by ticking it). */
+  auto?: boolean;
+  /** Ticked by hand. */
+  manual?: boolean;
   sub?: string;
 }
 
@@ -113,56 +121,68 @@ export const DEFAULT_MIX_CHECKS = [
 
 export const filled = (r?: RefSlot) => Boolean(r && (r.title?.trim() || r.artist?.trim()));
 
-/** What has to be done before leaving a stage. */
+/**
+ * What has to be done before leaving a stage. Every item clears either from what's written in the
+ * app (auto) or by ticking it by hand — decided in the DAW counts too.
+ */
 export function stageChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: string[]): Check[] {
+  const list = autoChecks(n, project, flow, mixItems);
+  if (n === 4) return list; // MIXING items are ticked by hand anyway
+  return list.map((c) => {
+    const manual = Boolean(flow.manual?.[`${n}:${c.id}`]);
+    return { ...c, auto: c.ok, manual, ok: c.ok || manual };
+  });
+}
+
+function autoChecks(n: number, project: ProjectDetail, flow: Flow, mixItems: string[]): Check[] {
   const refs = (flow.refs ?? []).filter(filled);
   switch (n) {
     case 1: {
       const top3 = refs.slice(0, 3);
       return [
-        { id: "brief", label: "先方の指示・リファレンスが入っている", ok: Boolean(project.brief.trim()) || project.files.some((f) => f.category === "client_ref") },
-        { id: "mission", label: "先方が本当に欲しいものを一言で書いた", ok: Boolean(flow.mission?.trim()) },
-        { id: "refs", label: "参考曲を 3 曲そろえた", ok: refs.length >= 3, sub: `${Math.min(3, refs.length)} / 3` },
+        { id: "brief", label: "先方の指示を確認", ok: Boolean(project.brief.trim()) || project.files.some((f) => f.category === "client_ref") },
+        { id: "mission", label: "先方が欲しいものを掴んだ", ok: Boolean(flow.mission?.trim()) },
+        { id: "refs", label: "参考曲 3 曲", ok: refs.length >= 3, sub: `${Math.min(3, refs.length)} / 3` },
         {
           id: "use",
-          label: "3 曲すべてに「活かす所」を書いた",
+          label: "活かす所を決めた",
           ok: top3.length >= 3 && top3.every((r) => r.use?.trim()),
           sub: top3.length ? top3.map((r, i) => `${SLOT_KEYS[i]} ${r.use?.trim() ? "✓" : "—"}`).join("  ") : undefined,
         },
-        { id: "bpm", label: "テンポを決めた", ok: Boolean(flow.analysis?.bpm?.trim()) },
+        { id: "bpm", label: "テンポ", ok: Boolean(flow.analysis?.bpm?.trim()) },
       ];
     }
     case 2: {
       const core = flow.core ?? {};
       const inst = core.harmony?.inst === "piano" ? "ピアノ" : "ギター";
       return [
-        { id: "structure", label: "構成を決めた", ok: (flow.structure ?? []).length >= 2 },
-        { id: "start", label: "何から作るか決めた", ok: Boolean(flow.startWith) },
-        { id: "chords", label: "コード進行を書いた", ok: (flow.chords ?? []).some((c) => c.prog.trim()) },
-        { id: "drums", label: "ドラムを仮決め", ok: Boolean(core.drums?.done) },
-        { id: "bass", label: "ベースを仮決め", ok: Boolean(core.bass?.done) },
-        { id: "harmony", label: `${inst}を仮決め`, ok: Boolean(core.harmony?.done) },
+        { id: "structure", label: "構成", ok: (flow.structure ?? []).length >= 2 },
+        { id: "start", label: "何から作るか", ok: Boolean(flow.startWith) },
+        { id: "chords", label: "コード進行", ok: (flow.chords ?? []).some((c) => c.prog.trim()) },
+        { id: "drums", label: "ドラム仮決め", ok: Boolean(core.drums?.done) },
+        { id: "bass", label: "ベース仮決め", ok: Boolean(core.bass?.done) },
+        { id: "harmony", label: `${inst}仮決め`, ok: Boolean(core.harmony?.done) },
       ];
     }
     case 3: {
       const parts = (flow.parts ?? []).filter((p) => p.name.trim());
       return [
-        { id: "parts", label: "上物を 1 つ以上決めた", ok: parts.length > 0 },
-        { id: "points", label: "すべての上物に「参考にする所」を書いた", ok: parts.length > 0 && parts.every((p) => p.point?.trim() || p.ref) },
-        { id: "done", label: "すべての上物を入れ終えた", ok: parts.length > 0 && parts.every((p) => p.done), sub: `${parts.filter((p) => p.done).length} / ${parts.length}` },
+        { id: "parts", label: "上物を決めた", ok: parts.length > 0 },
+        { id: "points", label: "参考にする所", ok: parts.length > 0 && parts.every((p) => p.point?.trim() || p.ref) },
+        { id: "done", label: "上物を入れ終えた", ok: parts.length > 0 && parts.every((p) => p.done), sub: `${parts.filter((p) => p.done).length} / ${parts.length}` },
       ];
     }
     case 4: {
       const checks = flow.mixChecks ?? {};
       const items: Check[] = mixItems.map((label, i) => ({ id: `mix-${i}`, label, ok: Boolean(checks[label]) }));
-      for (const p of flow.parked ?? []) items.push({ id: `park-${p.id}`, label: p.text, ok: Boolean(p.done), sub: `${stageMeta(p.from).en} で保留したこと` });
+      for (const p of flow.parked ?? []) items.push({ id: `park-${p.id}`, label: p.text, ok: Boolean(p.done), sub: `${stageMeta(p.from).en} で保留` });
       return items;
     }
     case 5:
       return [
         {
           id: "master",
-          label: "書き出した音源(mp3)を入れた",
+          label: "書き出した(mp3)",
           ok: project.files.some((f) => f.category === "deliverable" && f.mime.startsWith("audio/")),
         },
       ];

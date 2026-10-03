@@ -4,7 +4,15 @@ import { FilesSection } from "../FilesSection";
 import type { StageProps } from "./types";
 
 /** STAGE 05 SHIP: the exported mp3 goes in, then submit — done. */
-export function ShipStage({ project, flow, session, onFilesChange, onSubmit, canSubmit }: StageProps & { onSubmit: (submitted: boolean) => void; canSubmit: boolean }) {
+export function ShipStage({
+  project,
+  flow,
+  session,
+  onFilesChange,
+  onSubmit,
+  canSubmit,
+  onManual,
+}: StageProps & { onSubmit: (submitted: boolean) => void; canSubmit: boolean; onManual: () => void }) {
   const { prefs } = usePrefs();
   const submitted = Boolean(project.submittedAt);
   const total = STAGES.reduce((a, s) => a + elapsed(flow, s.n), 0);
@@ -40,7 +48,11 @@ export function ShipStage({ project, flow, session, onFilesChange, onSubmit, can
             <button className="ship-big" disabled={!canSubmit} onClick={() => onSubmit(true)}>
               SUBMIT ▶
             </button>
-            <div className="small">{canSubmit ? "提出したらここを押して完了。おつかれさまでした。" : "🔒 書き出した mp3 を入れると押せます"}</div>
+            {!canSubmit && (
+              <button className="btn small" onClick={onManual}>
+                ✓ 書き出した
+              </button>
+            )}
           </>
         )}
       </section>
