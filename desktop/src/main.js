@@ -5,7 +5,7 @@
 // The Studio Aegis UI sits in the middle; the side panes show sites as tabs — Splice / Suno / Web / Amazon MP3 on the left and
 // YouTube Music / Spotify on the right by default (splice.com refuses iframes, but a separate web view is a normal top-level page).
 const { app, BaseWindow, BrowserWindow, WebContentsView, Menu, shell, ipcMain, nativeTheme, nativeImage, dialog, session, clipboard } = require("electron");
-const { execFile } = require("node:child_process");
+const { execFile, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -836,7 +836,13 @@ function renameLegacyBundle() {
   } catch {
     return false; // e.g. no write access: keep running under the old name
   }
-  app.relaunch({ execPath: path.join(target, "Contents", "MacOS", path.basename(process.execPath)) });
+  // app.relaunch() would start from the old (now missing) path, so open the renamed bundle once this
+  // process is gone (the single-instance lock is released by then).
+  const child = spawn("/bin/sh", ["-c", 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; open "$2"', "sh", String(process.pid), target], {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
   app.exit(0);
   return true;
 }
