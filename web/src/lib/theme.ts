@@ -9,7 +9,7 @@ export const THEMES: { id: ThemeId; name: string; desc: string; swatch: string[]
   { id: "metal", name: "METAL", desc: "クローム×漆黒×ブラッドレッド", swatch: ["#08080a", "#c9ced6", "#c2272d"] },
   { id: "electro", name: "ELECTRO", desc: "クラブの照明。ネオン×グラデーション", swatch: ["#06051a", "#00e5ff", "#ff2bd6"] },
   { id: "cyberpunk", name: "CYBERPUNK", desc: "夜の街の HUD。イエロー×シアン×走査線", swatch: ["#0a0a10", "#fcee0a", "#00f0ff"] },
-  { id: "jpop", name: "J-POP FRESH", desc: "明るく爽やか。青空×グリーン×コーラル", swatch: ["#f4fbff", "#19b97a", "#ff7a45"] },
+  { id: "jpop", name: "J-POP FRESH", desc: "明るく爽やか。クリーム×グリーン×コーラル", swatch: ["#f2ead9", "#12a06a", "#ff7a45"] },
   { id: "mellow", name: "J-POP MELLOW", desc: "オシャレしっとり。夜×シャンパンゴールド×ローズ", swatch: ["#17110f", "#d8b07a", "#c46a7a"] },
 ];
 
