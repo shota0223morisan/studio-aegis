@@ -182,13 +182,13 @@ function currentPreset(pane: PaneState): PanePreset {
   return spliceOpen && playerOpen ? "build" : spliceOpen ? "polish" : playerOpen ? "listen" : "focus";
 }
 
-/** One-click side-pane layouts; the one the panes are already in is left out. */
+/** One-click side-pane layouts; the one the panes are in now is highlighted. */
 function PresetSwitch({ pane }: { pane: PaneState | null }) {
   const now = pane ? currentPreset(pane) : null;
   return (
     <div className="preset-switch" role="group" aria-label="レイアウト">
-      {PRESETS.filter((p) => p.id !== now).map((p) => (
-        <button key={p.id} onClick={() => void desktop!.applyPreset(p.id)} title={p.hint}>
+      {PRESETS.map((p) => (
+        <button key={p.id} className={p.id === now ? "on" : ""} aria-pressed={p.id === now} onClick={() => void desktop!.applyPreset(p.id)} title={p.hint}>
           {p.label}
         </button>
       ))}

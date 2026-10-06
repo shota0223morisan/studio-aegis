@@ -379,6 +379,7 @@ input.midi-name:hover { border-color: var(--border); }
   background: transparent; color: var(--muted);
 }
 .preset-switch button:hover { color: var(--text); background: var(--surface); }
+.preset-switch button.on { color: var(--text); background: var(--surface); box-shadow: inset 0 -2px 0 var(--accent); }
 @media (max-width: 1000px) { .preset-switch button { padding: 3px 5px; letter-spacing: 0.02em; } }
 
 /* ---- Sidebar stage badges ---- */
