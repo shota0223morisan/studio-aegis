@@ -83,6 +83,29 @@ jobs:
             echo "ok: $zip"
           done
 
+      # Launch the real app once and make sure it stays up and serves its UI (catches crash-on-launch,
+      # e.g. an Info.plist name that doesn't match the helper apps).
+      - name: Launch smoke test
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d)"
+          ditto -x -k out/Studio-Aegis-apple-silicon.zip "$dir"
+          app="$dir/Studio Aegis.app"
+          name="$(plutil -extract CFBundleName raw -o - "$app/Contents/Info.plist")"
+          test -d "$app/Contents/Frameworks/$name Helper.app" || { echo "no helper app for CFBundleName '$name'"; exit 1; }
+          "$app/Contents/MacOS/Studio Aegis" > launch.log 2>&1 &
+          pid=$!
+          ok=""
+          for i in $(seq 1 30); do
+            sleep 1
+            kill -0 "$pid" 2>/dev/null || { echo "app exited"; cat launch.log; exit 1; }
+            if curl -sf -o /dev/null http://127.0.0.1:47823/; then ok=1; break; fi
+          done
+          kill -0 "$pid" 2>/dev/null || { echo "app exited"; cat launch.log; exit 1; }
+          kill "$pid" || true
+          test -n "$ok" || { echo "UI never came up"; cat launch.log; exit 1; }
+          echo "launch ok"
+
       - name: Read version
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
