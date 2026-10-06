@@ -1,6 +1,6 @@
 # Session Partner
 
-(旧名 Studio Aegis。アプリのファイル名・データの保存場所は `Studio Aegis` のまま)
+(旧名 Studio Aegis。データの保存場所・ダウンロードするファイル名は `Studio Aegis` のまま)
 
 DAW 以外の制作まわりを 1 か所に集約する、個人用の音楽制作ハブ(Mac アプリ)。
 **取引先 → 曲** ごとに、**5 ステージの制作フロー**(DECODE → FRAME → LAYER → MIXING → SHIP)に沿って進めるだけでトラックが完成する作りです。真ん中が作業場で、左右のパネルに Splice / Suno / Web / Amazon(MP3)と YouTube Music / Spotify をタブで表示します。AI(契約中の Claude のサブスク)が分析・MIDI 生成で加速し、ステージの鍵が寄り道を止めます。
@@ -13,13 +13,14 @@ DAW 以外の制作まわりを 1 か所に集約する、個人用の音楽制�
 
 1. [Releases](../../releases/latest) から dmg をダウンロード
    - Apple Silicon(M1 以降)→ `Studio-Aegis-apple-silicon.dmg` / Intel Mac → `Studio-Aegis-intel.dmg`
-2. dmg を開いて Studio Aegis(Session Partner)を「アプリケーション」へドラッグ
+2. dmg を開いて Session Partner を「アプリケーション」へドラッグ(Studio Aegis 時代のものがあれば削除して OK。データはそのまま)
 3. 初回だけ「開けません」と出るので、**システム設定 → プライバシーとセキュリティ** →「このまま開く」(Apple の有料署名をしていない個人用アプリのため)
 
 **更新**: 新しいバージョンが出るとアプリ上部にお知らせが出ます。**「⬆ 今すぐ更新」を押すだけで、自動でダウンロード → 確認 → 入れ替え → 再起動**します(設定画面・メニュー「Session Partner → アップデートを確認…」からも)。データはそのまま残ります。
 - 「アプリケーション」フォルダに入れたアプリで使えます(dmg から直接開いている場合は、先にアプリケーションへ入れてください)
 - ダウンロードしたファイルは、GitHub の sha256・アプリの ID・バージョン・署名を確かめてから入れ替えます
-- v0.5.0 以前からは、一度だけ dmg で v0.6.0 を入れてください(アプリ内更新は v0.6.0 から)
+- v0.5.0 以前からは、一度だけ dmg で入れ直してください(アプリ内更新は v0.6.0 から)
+- Studio Aegis 時代の版からアプリ内更新すると、次の起動でアプリが自分で「Session Partner.app」に名前を変えて開き直します
 
 ## 画面
 

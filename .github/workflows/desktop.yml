@@ -1,6 +1,6 @@
 name: Desktop app (macOS)
 
-# Builds the Studio Aegis Mac app (web UI bundled in) on a macOS runner and publishes the .dmg
+# Builds the Session Partner (formerly Studio Aegis) Mac app (web UI bundled in) on a macOS runner and publishes the .dmg
 # as a GitHub Release
 # (tag desktop-v<version from desktop/package.json>).
 on:
@@ -48,8 +48,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          find dist -maxdepth 2 -name "Studio Aegis.app" -print0 | while IFS= read -r -d '' app; do
-            exe="$app/Contents/MacOS/Studio Aegis"
+          find dist -maxdepth 2 -name "Session Partner.app" -print0 | while IFS= read -r -d '' app; do
+            exe="$app/Contents/MacOS/Session Partner"
             case "$(lipo -archs "$exe")" in
               arm64) arch=apple-silicon ;;
               x86_64) arch=intel ;;
@@ -60,9 +60,13 @@ jobs:
             stage="$(mktemp -d)"
             cp -R "$app" "$stage/"
             ln -s /Applications "$stage/Applications"
-            hdiutil create -volname "Studio Aegis" -srcfolder "$stage" -ov -format UDZO "out/Studio-Aegis-${arch}.dmg"
-            # .zip for the in-app updater (ditto keeps the bundle's links and signature intact)
-            ditto -c -k --sequesterRsrc --keepParent "$app" "out/Studio-Aegis-${arch}.zip"
+            hdiutil create -volname "Session Partner" -srcfolder "$stage" -ov -format UDZO "out/Studio-Aegis-${arch}.dmg"
+            # .zip for the in-app updater (ditto keeps the bundle's links and signature intact). Inside, the
+            # folder keeps the old "Studio Aegis.app" name so versions before the rename can still update;
+            # the app renames its own bundle on first launch.
+            zstage="$(mktemp -d)"
+            ditto "$app" "$zstage/Studio Aegis.app"
+            ditto -c -k --sequesterRsrc --keepParent "$zstage/Studio Aegis.app" "out/Studio-Aegis-${arch}.zip"
           done
           ls -la out
           test "$(ls out/*.dmg | wc -l)" -eq 2
@@ -85,25 +89,30 @@ jobs:
 
       # Launch the real app once and make sure it stays up and serves its UI (catches crash-on-launch,
       # e.g. an Info.plist name that doesn't match the helper apps).
+      # Launch the real app and make sure it stays up and serves its UI (catches crash-on-launch, e.g.
+      # an Info.plist name that doesn't match the helper apps). Also checks the update path: an install
+      # still named "Studio Aegis.app" renames itself to "Session Partner.app" and relaunches.
       - name: Launch smoke test
         run: |
           set -euo pipefail
           dir="$(mktemp -d)"
           ditto -x -k out/Studio-Aegis-apple-silicon.zip "$dir"
-          app="$dir/Studio Aegis.app"
-          name="$(plutil -extract CFBundleName raw -o - "$app/Contents/Info.plist")"
-          test -d "$app/Contents/Frameworks/$name Helper.app" || { echo "no helper app for CFBundleName '$name'"; exit 1; }
-          "$app/Contents/MacOS/Studio Aegis" > launch.log 2>&1 &
-          pid=$!
+          plist="$dir/Studio Aegis.app/Contents/Info.plist"
+          name="$(plutil -extract CFBundleName raw -o - "$plist")"
+          exe="$(plutil -extract CFBundleExecutable raw -o - "$plist")"
+          test "$name" = "Session Partner"
+          test -d "$dir/Studio Aegis.app/Contents/Frameworks/$name Helper.app" || { echo "no helper app for CFBundleName '$name'"; exit 1; }
+          "$dir/Studio Aegis.app/Contents/MacOS/$exe" > launch.log 2>&1 &
           ok=""
-          for i in $(seq 1 30); do
+          for i in $(seq 1 40); do
             sleep 1
-            kill -0 "$pid" 2>/dev/null || { echo "app exited"; cat launch.log; exit 1; }
-            if curl -sf -o /dev/null http://127.0.0.1:47823/; then ok=1; break; fi
+            if [ -d "$dir/Session Partner.app" ] && curl -sf -o /dev/null http://127.0.0.1:47823/; then ok=1; break; fi
           done
-          kill -0 "$pid" 2>/dev/null || { echo "app exited"; cat launch.log; exit 1; }
-          kill "$pid" || true
-          test -n "$ok" || { echo "UI never came up"; cat launch.log; exit 1; }
+          test -d "$dir/Session Partner.app" || { echo "bundle was not renamed"; ls "$dir"; cat launch.log; exit 1; }
+          test -n "$ok" || { echo "UI never came up after the rename"; cat launch.log; exit 1; }
+          sleep 5
+          curl -sf -o /dev/null http://127.0.0.1:47823/ || { echo "app died after launch"; cat launch.log; exit 1; }
+          pkill -f "Session Partner.app/Contents/MacOS" || true
           echo "launch ok"
 
       - name: Read version
@@ -122,7 +131,7 @@ jobs:
         with:
           tag_name: desktop-v${{ steps.version.outputs.version }}
           target_commitish: ${{ github.sha }}
-          name: Studio Aegis for Mac ${{ steps.version.outputs.version }}
+          name: Session Partner for Mac ${{ steps.version.outputs.version }}
           files: |
             desktop/out/*.dmg
             desktop/out/*.zip
@@ -134,7 +143,7 @@ jobs:
             (どちらか分からないときは  メニュー →「この Mac について」の「チップ」を確認)
 
             ## インストール / 更新
-            1. dmg を開き、Studio Aegis を「アプリケーション」へドラッグ(更新のときは「置き換える」)
+            1. dmg を開き、Session Partner を「アプリケーション」へドラッグ(前の Studio Aegis は削除して OK。データはそのまま)
             2. 初回だけ: アプリを開こうとすると「開けません」と出るので、
                **システム設定 → プライバシーとセキュリティ** の下の方にある「このまま開く」をクリック
                (Apple の有料開発者署名をしていない個人用アプリのため)

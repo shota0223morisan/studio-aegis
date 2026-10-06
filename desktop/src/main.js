@@ -13,9 +13,12 @@ const { openDatabase } = require("./server/db");
 const { createServer } = require("./server/server");
 const updater = require("./updater");
 
-// Shown everywhere. The bundle / data folder keep the original "Studio Aegis" name so data and
-// in-app updates carry over.
 const APP_NAME = "Session Partner";
+// The app used to be "Studio Aegis": keep that internal name so the data folder, the per-site logins
+// (and the keychain key that encrypts them) carry over. Must run before anything touches userData.
+const LEGACY_NAME = "Studio Aegis";
+app.setName(LEGACY_NAME);
+app.setPath("userData", path.join(app.getPath("appData"), LEGACY_NAME));
 const PORT = Number(process.env.AEGIS_PORT) || 47823; // fixed: the Spotify redirect URI includes it
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PRELOAD = path.join(__dirname, "preload.js");
@@ -815,7 +818,31 @@ function buildMenu() {
 
 // ---- Lifecycle -------------------------------------------------------------
 
+/**
+ * Installs updated from "Studio Aegis" still sit at …/Studio Aegis.app (the in-app updater swaps the
+ * contents in place). Rename the bundle once so Finder and the Dock show "Session Partner", then
+ * relaunch from the new place. Returns true when the app is about to relaunch.
+ */
+function renameLegacyBundle() {
+  if (!app.isPackaged || process.platform !== "darwin") return false;
+  let bundle = path.dirname(process.execPath);
+  while (bundle !== path.dirname(bundle) && !bundle.endsWith(".app")) bundle = path.dirname(bundle);
+  if (path.basename(bundle) !== `${LEGACY_NAME}.app`) return false;
+  if (bundle.startsWith("/Volumes/") || bundle.includes("/AppTranslocation/")) return false;
+  const target = path.join(path.dirname(bundle), `${APP_NAME}.app`);
+  if (fs.existsSync(target)) return false;
+  try {
+    fs.renameSync(bundle, target);
+  } catch {
+    return false; // e.g. no write access: keep running under the old name
+  }
+  app.relaunch({ execPath: path.join(target, "Contents", "MacOS", path.basename(process.execPath)) });
+  app.exit(0);
+  return true;
+}
+
 async function start() {
+  if (renameLegacyBundle()) return;
   app.setAboutPanelOptions({ applicationName: APP_NAME, applicationVersion: app.getVersion() });
   store = openDatabase(dataDir());
 

@@ -20,7 +20,7 @@ const ASSET = `Studio-Aegis-${process.arch === "arm64" ? "apple-silicon" : "inte
 // first, then renames, so an interruption never leaves a broken app behind.
 const INSTALL_SH = `#!/bin/sh
 PID="$1"; NEW="$2"; CUR="$3"
-DIR="$(dirname "$CUR")"; BAK="$DIR/.StudioAegis-old-$$.app"; STAGE="$DIR/.StudioAegis-new-$$.app"
+DIR="$(dirname "$CUR")"; BAK="$DIR/.SessionPartner-old-$$.app"; STAGE="$DIR/.SessionPartner-new-$$.app"
 LOG="$(dirname "$NEW")/install.log"
 i=0
 while kill -0 "$PID" 2>/dev/null; do
@@ -68,7 +68,7 @@ function installProblem(bundle) {
   if (!bundle) return "開発版なので、アプリ内の更新は使えません";
   if (bundle.startsWith("/Volumes/")) return "dmg から直接開いています。「アプリケーション」フォルダに入れてから開いてください";
   if (bundle.includes("/AppTranslocation/")) {
-    return "Mac が一時的な場所でアプリを開いています。Finder で Studio Aegis.app(Session Partner)を「アプリケーション」フォルダに入れ直してから開いてください";
+    return "Mac が一時的な場所でアプリを開いています。Finder で Session Partner を「アプリケーション」フォルダに入れ直してから開いてください";
   }
   try {
     fs.accessSync(path.dirname(bundle), fs.constants.W_OK);
@@ -156,8 +156,9 @@ async function download(info, onProgress) {
   const extracted = path.join(dir, "app");
   fs.mkdirSync(extracted);
   await run("ditto", ["-x", "-k", zip, extracted]);
-  const newApp = path.join(extracted, "Studio Aegis.app");
-  if (!fs.existsSync(newApp)) throw new UpdateError("zip の中にアプリが見つかりません");
+  // The zip keeps the old "Studio Aegis.app" folder name so older versions can still update.
+  const newApp = ["Studio Aegis.app", "Session Partner.app"].map((n) => path.join(extracted, n)).find((p) => fs.existsSync(p));
+  if (!newApp) throw new UpdateError("zip の中にアプリが見つかりません");
   const plist = path.join(newApp, "Contents", "Info.plist");
   const id = await run("plutil", ["-extract", "CFBundleIdentifier", "raw", "-o", "-", plist]);
   const version = await run("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", plist]);
