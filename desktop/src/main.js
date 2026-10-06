@@ -339,8 +339,7 @@ function swapSides() {
 
 /**
  * Layout presets, also applied automatically when a song moves to another stage.
- * listen: the listening side wide, the other folded · build: Splice + a small player
- * polish: a narrower player only · focus: both folded
+ * listen: the player only · polish: Splice only · build: both · focus: both folded
  */
 function applyPreset(name) {
   const listenSide = LISTEN_TABS.has(panes.right.tab) && sides[panes.right.tab] === "right" ? "right" : sides.ytmusic;
@@ -360,8 +359,10 @@ function applyPreset(name) {
       show(listenSide, listenTab, 0.22);
     } else show(buildSide, "splice", 0.3);
   } else if (name === "polish") {
-    show(listenSide, listenTab, 0.26);
-    panes[other].open = false;
+    // Sound work: Splice only.
+    const buildSide = sides.splice;
+    show(buildSide, "splice", 0.3);
+    panes[buildSide === "left" ? "right" : "left"].open = false;
   } else if (name === "focus") {
     panes.left.open = false;
     panes.right.open = false;
@@ -790,9 +791,9 @@ function buildMenu() {
         { label: panes.right.open ? "右パネルを畳む" : "右パネルを開く", accelerator: "CmdOrCtrl+Shift+R", click: () => togglePane("right") },
         { label: "左右を入れ替える", accelerator: "CmdOrCtrl+Shift+S", click: swapSides },
         { type: "separator" },
-        { label: "LISTEN(聴いて分析)", click: () => applyPreset("listen") },
-        { label: "BUILD(素材探し+プレイヤー)", click: () => applyPreset("build") },
-        { label: "POLISH(リファレンスと比較)", click: () => applyPreset("polish") },
+        { label: "LISTEN(プレイヤーだけ)", click: () => applyPreset("listen") },
+        { label: "POLISH(Splice だけ)", click: () => applyPreset("polish") },
+        { label: "BUILD(左右とも)", click: () => applyPreset("build") },
         { label: "FOCUS(両方畳む)", accelerator: "CmdOrCtrl+Shift+F", click: () => applyPreset("focus") },
         { type: "separator" },
         ...TAB_ORDER.map((t, i) => ({

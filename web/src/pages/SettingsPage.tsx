@@ -231,7 +231,7 @@ function FlowSettings() {
         <div className="settings-row">
           <div>
             <b>ステージに合わせて左右のパネルを切り替える</b>
-            <p className="muted small">DECODE → LISTEN / FRAME・LAYER → BUILD / MIXING → POLISH / SHIP → FOCUS</p>
+            <p className="muted small">DECODE → LISTEN / FRAME・LAYER → BUILD / MIXING → POLISH(Splice) / SHIP → FOCUS</p>
           </div>
           <div className="segmented">
             <button className={prefs.autoLayout ? "active" : ""} onClick={() => void update({ autoLayout: true })}>

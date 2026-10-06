@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, type Session } from "./lib/api";
-import { desktop, type PanePreset, type UpdateInfo } from "./lib/desktop";
+import { desktop, type PanePreset, type PaneState, type UpdateInfo } from "./lib/desktop";
 import { LibraryProvider } from "./lib/library";
 import { PrefsProvider } from "./lib/prefs";
 import { useToast } from "./lib/toast";
@@ -103,7 +103,7 @@ function Shell() {
               ))}
             </nav>
             <div className="topbar-right">
-              {desktop && <PresetSwitch />}
+              {desktop && <PresetSwitch pane={pane} />}
               <ThemeDots />
               {desktop && (
                 <button
@@ -164,17 +164,30 @@ function useNarrow(px: number) {
 }
 
 const PRESETS: { id: PanePreset; label: string; hint: string }[] = [
-  { id: "listen", label: "LISTEN", hint: "聴いて分析: プレイヤーを広く、もう片方は畳む" },
-  { id: "build", label: "BUILD", hint: "素材探し: Splice + 小さいプレイヤー" },
-  { id: "polish", label: "POLISH", hint: "ミックス: リファレンスのプレイヤーだけ" },
+  { id: "listen", label: "LISTEN", hint: "プレイヤー(YT Music など)だけ" },
+  { id: "polish", label: "POLISH", hint: "Splice だけ" },
+  { id: "build", label: "BUILD", hint: "左右とも開く" },
   { id: "focus", label: "FOCUS", hint: "両方畳んでアプリだけ(⌘⇧F)" },
 ];
 
-/** One-click side-pane layouts (also applied automatically when a song changes stage). */
-function PresetSwitch() {
+/** Which preset the panes are in now: the Splice side / the player side open or not. */
+function currentPreset(pane: PaneState): PanePreset {
+  const spliceOpen = pane[pane.sides.splice].open;
+  const playerOpen = pane[pane.sides.ytmusic].open;
+  if (pane.sides.splice === pane.sides.ytmusic) {
+    const open = pane[pane.sides.splice].open;
+    const other = pane[pane.sides.splice === "left" ? "right" : "left"].open;
+    return open && other ? "build" : open || other ? "listen" : "focus";
+  }
+  return spliceOpen && playerOpen ? "build" : spliceOpen ? "polish" : playerOpen ? "listen" : "focus";
+}
+
+/** One-click side-pane layouts; the one the panes are already in is left out. */
+function PresetSwitch({ pane }: { pane: PaneState | null }) {
+  const now = pane ? currentPreset(pane) : null;
   return (
     <div className="preset-switch" role="group" aria-label="レイアウト">
-      {PRESETS.map((p) => (
+      {PRESETS.filter((p) => p.id !== now).map((p) => (
         <button key={p.id} onClick={() => void desktop!.applyPreset(p.id)} title={p.hint}>
           {p.label}
         </button>

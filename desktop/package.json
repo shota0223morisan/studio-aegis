@@ -1,7 +1,7 @@
 {
   "name": "studio-aegis-desktop",
   "productName": "Studio Aegis",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "description": "Session Partner — music-production partner for Mac",
   "main": "src/main.js",

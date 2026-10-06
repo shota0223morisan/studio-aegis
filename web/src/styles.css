@@ -420,7 +420,7 @@ body.resizing { cursor: col-resize; user-select: none; }
   .nav a { padding: 4px 9px; }
   .theme-dots { gap: 3px; }
   .theme-dots button { width: 13px; height: 13px; }
-  .brand .eq { display: none; }
+
 }
 @media (max-width: 700px) {
   .body { grid-template-columns: 196px minmax(0, 1fr); }
@@ -587,3 +587,14 @@ body.pane-tabs-body { background-image: none; overflow: hidden; }
 .card.folded > :not(.section-head) { display: none !important; }
 .card.folded > .section-head { margin-bottom: 0; }
 .card.folded { padding-top: 12px; padding-bottom: 12px; }
+
+/* Narrow app view (both side panes open): logo mark only, compact nav so the top bar fits */
+.nav a { white-space: nowrap; }
+@media (max-width: 920px) {
+  .topbar { padding: 8px 10px; gap: 8px; }
+  .brand-text { display: none; }
+  .nav a { padding: 4px 8px; }
+  .nav a small { display: none; }
+  .theme-dots { gap: 3px; }
+  .theme-dots button { width: 13px; height: 13px; }
+}

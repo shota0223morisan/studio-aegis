@@ -379,7 +379,7 @@ input.midi-name:hover { border-color: var(--border); }
   background: transparent; color: var(--muted);
 }
 .preset-switch button:hover { color: var(--text); background: var(--surface); }
-@media (max-width: 1100px) { .preset-switch { display: none; } }
+@media (max-width: 1000px) { .preset-switch button { padding: 3px 5px; letter-spacing: 0.02em; } }
 
 /* ---- Sidebar stage badges ---- */
 .side-song { display: flex !important; align-items: center; gap: 6px; }
