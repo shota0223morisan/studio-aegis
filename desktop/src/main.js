@@ -1,4 +1,4 @@
-// Studio Aegis — Mac app.
+// Session Partner (formerly Studio Aegis) — Mac app.
 //
 // Everything runs on this Mac: a small local server (127.0.0.1 only) keeps projects in SQLite and
 // files on disk under ~/Library/Application Support/Studio Aegis/data, and serves the UI.
@@ -13,6 +13,9 @@ const { openDatabase } = require("./server/db");
 const { createServer } = require("./server/server");
 const updater = require("./updater");
 
+// Shown everywhere. The bundle / data folder keep the original "Studio Aegis" name so data and
+// in-app updates carry over.
+const APP_NAME = "Session Partner";
 const PORT = Number(process.env.AEGIS_PORT) || 47823; // fixed: the Spotify redirect URI includes it
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PRELOAD = path.join(__dirname, "preload.js");
@@ -564,7 +567,7 @@ function createWindow() {
     y: bounds?.y,
     minWidth: 980,
     minHeight: 600,
-    title: "Studio Aegis",
+    title: APP_NAME,
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#111214" : "#f6f5f2",
   });
   appView = createAppView();
@@ -596,7 +599,7 @@ async function exportBackup() {
   });
   if (canceled || !filePaths[0]) return { ok: false };
   const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "");
-  const dest = path.join(filePaths[0], `Studio Aegis バックアップ ${stamp}`);
+  const dest = path.join(filePaths[0], `${APP_NAME} バックアップ ${stamp}`);
   fs.mkdirSync(dest, { recursive: true });
   // VACUUM INTO writes a consistent snapshot even while the database is open.
   store.db.prepare("VACUUM INTO ?").run(path.join(dest, "aegis.db"));
@@ -730,16 +733,16 @@ function buildMenu() {
     ...(isMac
       ? [
           {
-            label: app.name,
+            label: APP_NAME,
             submenu: [
-              { role: "about", label: "Studio Aegis について" },
+              { role: "about", label: `${APP_NAME} について` },
               { label: "アップデートを確認…", click: () => void checkForUpdateFromMenu() },
               { type: "separator" },
-              { role: "hide", label: "Studio Aegis を隠す" },
+              { role: "hide", label: `${APP_NAME} を隠す` },
               { role: "hideOthers", label: "ほかを隠す" },
               { role: "unhide", label: "すべてを表示" },
               { type: "separator" },
-              { role: "quit", label: "Studio Aegis を終了" },
+              { role: "quit", label: `${APP_NAME} を終了` },
             ],
           },
         ]
@@ -812,7 +815,7 @@ function buildMenu() {
 // ---- Lifecycle -------------------------------------------------------------
 
 async function start() {
-  app.setAboutPanelOptions({ applicationName: "Studio Aegis", applicationVersion: app.getVersion() });
+  app.setAboutPanelOptions({ applicationName: APP_NAME, applicationVersion: app.getVersion() });
   store = openDatabase(dataDir());
 
   // Per-launch secret: only this app's window carries it, so other apps / browsers can't use the API.
@@ -821,7 +824,7 @@ async function start() {
     await createServer({ store, webDir: webDir(), port: PORT, sessionToken });
   } catch (err) {
     dialog.showErrorBox(
-      "Studio Aegis を起動できません",
+      `${APP_NAME} を起動できません`,
       err?.code === "EADDRINUSE" ? `ポート ${PORT} がほかのアプリに使われています。そのアプリを終了してから開き直してください。` : String(err),
     );
     app.quit();

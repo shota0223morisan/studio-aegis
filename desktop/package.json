@@ -1,9 +1,9 @@
 {
   "name": "studio-aegis-desktop",
   "productName": "Studio Aegis",
-  "version": "0.8.3",
+  "version": "0.9.0",
   "private": true,
-  "description": "Studio Aegis — music-production hub for Mac",
+  "description": "Session Partner — music-production partner for Mac",
   "main": "src/main.js",
   "author": "Studio Aegis",
   "scripts": {
@@ -30,7 +30,11 @@
       "category": "public.app-category.music",
       "icon": "build/icon.png",
       "identity": null,
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "extendInfo": {
+        "CFBundleName": "Session Partner",
+        "CFBundleDisplayName": "Session Partner"
+      }
     },
     "extraResources": [
       {

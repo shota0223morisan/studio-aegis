@@ -9,7 +9,7 @@ export function HomePage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    document.title = "Studio Aegis";
+    document.title = "Session Partner";
   }, []);
 
   const clientOf = (id: string | null) => clients.find((c) => c.id === id) ?? null;

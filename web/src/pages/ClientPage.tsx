@@ -38,7 +38,7 @@ function ClientView({
   }, 600);
 
   useEffect(() => {
-    document.title = `${initialName} — Studio Aegis`;
+    document.title = `${initialName} — Session Partner`;
   }, [initialName]);
 
   return (

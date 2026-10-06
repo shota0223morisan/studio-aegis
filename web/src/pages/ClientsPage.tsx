@@ -9,7 +9,7 @@ export function ClientsPage() {
   const [name, setName] = useState("");
 
   useEffect(() => {
-    document.title = "取引先 — Studio Aegis";
+    document.title = "取引先 — Session Partner";
   }, []);
 
   async function submit(e: FormEvent) {

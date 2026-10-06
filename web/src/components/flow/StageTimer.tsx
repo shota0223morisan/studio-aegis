@@ -35,7 +35,7 @@ export function StageTimer({
     if (!running || !over || flow.notified?.[stage]) return;
     onNotified();
     try {
-      new Notification("Studio Aegis — タイムアップ", { body: "予定の時間を使い切りました。仮で決めて次へ進みましょう。", silent: false });
+      new Notification("Session Partner — タイムアップ", { body: "予定の時間を使い切りました。仮で決めて次へ進みましょう。", silent: false });
     } catch {
       /* notifications unavailable */
     }

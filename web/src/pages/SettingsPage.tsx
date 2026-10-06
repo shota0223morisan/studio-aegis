@@ -12,7 +12,7 @@ export function SettingsPage() {
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
-    document.title = "設定 — Studio Aegis";
+    document.title = "設定 — Session Partner";
     void desktop?.getInfo().then(setInfo);
   }, []);
 

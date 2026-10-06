@@ -66,7 +66,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
   }, [id]);
 
   useEffect(() => {
-    if (project) document.title = `${project.name} — Studio Aegis`;
+    if (project) document.title = `${project.name} — Session Partner`;
   }, [project?.name]);
 
   const update = useCallback(

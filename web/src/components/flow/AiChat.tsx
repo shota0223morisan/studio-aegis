@@ -85,7 +85,7 @@ export function AiChat({ projectId, stage, quick, placeholder }: { projectId: st
     <section className="card ai-card">
       <div className="section-head">
         <span className="sec-icon">✦</span>
-        <h2 className="fx-en">AEGIS AI</h2>
+        <h2 className="fx-en">PARTNER</h2>
         <span className="sec-line" />
         {messages.length > 0 && (
           <button

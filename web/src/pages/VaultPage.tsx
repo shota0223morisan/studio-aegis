@@ -25,7 +25,7 @@ export function VaultPage() {
   }
 
   useEffect(() => {
-    document.title = "MIDI 倉庫 — Studio Aegis";
+    document.title = "MIDI 倉庫 — Session Partner";
   }, []);
   useEffect(() => {
     const t = window.setTimeout(() => {

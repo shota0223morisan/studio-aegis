@@ -68,7 +68,7 @@ function installProblem(bundle) {
   if (!bundle) return "開発版なので、アプリ内の更新は使えません";
   if (bundle.startsWith("/Volumes/")) return "dmg から直接開いています。「アプリケーション」フォルダに入れてから開いてください";
   if (bundle.includes("/AppTranslocation/")) {
-    return "Mac が一時的な場所でアプリを開いています。Finder で Studio Aegis を「アプリケーション」フォルダに入れ直してから開いてください";
+    return "Mac が一時的な場所でアプリを開いています。Finder で Studio Aegis.app(Session Partner)を「アプリケーション」フォルダに入れ直してから開いてください";
   }
   try {
     fs.accessSync(path.dirname(bundle), fs.constants.W_OK);
@@ -161,7 +161,7 @@ async function download(info, onProgress) {
   const plist = path.join(newApp, "Contents", "Info.plist");
   const id = await run("plutil", ["-extract", "CFBundleIdentifier", "raw", "-o", "-", plist]);
   const version = await run("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", plist]);
-  if (id !== BUNDLE_ID) throw new UpdateError("中身が Studio Aegis ではありません");
+  if (id !== BUNDLE_ID) throw new UpdateError("中身が Session Partner ではありません");
   if (version !== info.latest) throw new UpdateError(`版が合いません(${version} ≠ ${info.latest})`);
   await run("codesign", ["--verify", "--deep", "--strict", newApp]).catch((err) => {
     throw new UpdateError(`アプリの署名が壊れています: ${err.message}`);

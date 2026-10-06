@@ -91,7 +91,7 @@ function Shell() {
                   <i />
                   <i />
                 </span>
-                <span className="brand-text">Studio Aegis</span>
+                <span className="brand-text">Session Partner</span>
               </Link>
             </div>
             <nav className="nav">

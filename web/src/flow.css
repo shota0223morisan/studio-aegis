@@ -144,7 +144,7 @@ button.gate-box { cursor: pointer; }
 .ai-msg { flex: none; padding: 8px 11px; border-radius: var(--radius-input); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; cursor: auto; }
 .ai-msg.me { align-self: flex-end; max-width: 88%; background: var(--surface-2); white-space: pre-wrap; }
 .ai-msg.bot { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); }
-.ai-msg.bot::before { content: "AEGIS AI"; display: block; font: 10px var(--mono); letter-spacing: 0.16em; color: var(--accent); margin-bottom: 2px; }
+.ai-msg.bot::before { content: "PARTNER"; display: block; font: 10px var(--mono); letter-spacing: 0.16em; color: var(--accent); margin-bottom: 2px; }
 .ai-msg.markdown > :first-child, .ai-msg.markdown > div > :first-child { margin-top: 0; }
 .ai-msg.markdown ul, .ai-msg.markdown ol { padding-left: 1.3em; }
 .ai-thinking { color: var(--muted); animation: blink 1.2s ease-in-out infinite; }

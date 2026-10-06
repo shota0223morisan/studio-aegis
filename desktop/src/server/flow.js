@@ -76,7 +76,7 @@ function songContext(db, project) {
 function systemFor(stage, extra = "") {
   const s = STAGES[stage] ?? STAGES[1];
   return [
-    "あなたは音楽プロデューサー/作編曲家の制作パートナー「AEGIS AI」です。日本語で、短く具体的に答えます。",
+    "あなたは音楽プロデューサー/作編曲家の相棒「Session Partner」です。日本語で、短く具体的に答えます。",
     "あなたは音源を聴けません。曲名・アーティスト名からの一般的な知識と、本人が書いたメモ・数値だけを根拠にしてください。知らない曲は知らないと言い、でっち上げない。",
     "キー(調)は比較や関連性の判断に使わないでください(本人の方針)。",
     `いまは STAGE ${stage} ${s.en}(${s.jp})。このステージの目的: ${s.goal}。`,
@@ -184,7 +184,7 @@ function createFlowRouter(store) {
     const send = (o) => res.write(`${JSON.stringify(o)}\n`);
     send({ type: "user", message: serializeMsg(userMsg) });
 
-    const convo = history.map((m) => `【${m.role === "user" ? "本人" : "AEGIS AI"}】\n${m.text.slice(0, 4000)}`).join("\n\n");
+    const convo = history.map((m) => `【${m.role === "user" ? "本人" : "Session Partner"}】\n${m.text.slice(0, 4000)}`).join("\n\n");
     const extra = stage === 4 ? mixTipsNote(store) : "";
     const prompt = `${songContext(db, { ...p, stage })}\n\n${convo ? `--- これまでの会話 ---\n${convo}\n\n` : ""}--- 本人の発言 ---\n${text}`;
     try {
