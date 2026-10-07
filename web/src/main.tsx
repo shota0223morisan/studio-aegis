@@ -7,6 +7,7 @@ import "./styles.css";
 import "./themes.css";
 import "./themes-bright.css";
 import "./flow.css";
+import "./worlds.css";
 import "./fonts";
 
 applySavedTheme();

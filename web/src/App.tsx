@@ -6,6 +6,7 @@ import { LibraryProvider } from "./lib/library";
 import { PrefsProvider } from "./lib/prefs";
 import { useToast } from "./lib/toast";
 import { useFold } from "./lib/fold";
+import { useTickSparkles } from "./lib/fx";
 import { usePane } from "./lib/usePane";
 import { HomePage } from "./pages/HomePage";
 import { ClientsPage } from "./pages/ClientsPage";
@@ -45,6 +46,7 @@ function Shell() {
   const pane = usePane();
   const note = useToast();
   useFold();
+  useTickSparkles();
   useEffect(() => setOverlay(false), [location.pathname, narrow]);
 
   useEffect(() => {
@@ -70,6 +72,9 @@ function Shell() {
     <PrefsProvider>
     <LibraryProvider>
         <div className="app">
+          <div className="world" aria-hidden>
+            <div className="world-art" />
+          </div>
           {pane?.left.open && <PaneDivider side="left" />}
           {pane?.right.open && <PaneDivider side="right" />}
           <header className="topbar">

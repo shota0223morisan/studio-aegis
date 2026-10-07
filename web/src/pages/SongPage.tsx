@@ -9,6 +9,7 @@ import { formatDate } from "../lib/format";
 import { useLibrary } from "../lib/library";
 import { useMixChecklist, useMixTips } from "../lib/mixTips";
 import { GateProvider } from "../lib/gate";
+import { confetti } from "../lib/fx";
 import { usePrefs } from "../lib/prefs";
 import { saveLabel, useAutosave } from "../lib/useAutosave";
 import { Thumb } from "../components/Thumb";
@@ -105,6 +106,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
     await api.updateProject(project.id, { stage: to, flow: f });
     void reload();
     setFlash(`STAGE 0${from} CLEAR — ${stageMeta(to).en}`);
+    confetti();
     window.setTimeout(() => setFlash(null), 2600);
     if (prefs.autoLayout && desktop) void desktop.applyPreset(stageMeta(to).preset);
     document.querySelector(".main")?.scrollTo({ top: 0, behavior: "smooth" });
@@ -129,6 +131,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
     void reload();
     if (on) {
       setFlash("TRACK COMPLETE");
+      confetti(220);
       window.setTimeout(() => setFlash(null), 3200);
     }
   }

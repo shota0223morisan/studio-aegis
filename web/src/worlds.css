@@ -1,0 +1,96 @@
+/*
+ * Each theme's world: an illustrated scene fixed behind the app (and in the song header),
+ * plus the "dopamine" layer — confetti, sparkles, glows. Cards stay opaque, so the work area
+ * reads exactly as before; the scene lives in the margins, the header and behind glass.
+ */
+.world { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.world-art {
+  position: absolute; inset: -2%; background: center bottom / cover no-repeat; opacity: var(--world-op, 1);
+  animation: world-breathe 40s ease-in-out infinite alternate;
+}
+/* keep the middle calmer where text sits outside cards */
+.world::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(65% 55% at 50% 42%, color-mix(in srgb, var(--bg) 60%, transparent), transparent 85%);
+}
+@keyframes world-breathe { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.05) translate(-1%, -0.6%); } }
+
+:root .world-art, [data-theme="studio"] .world-art { background-image: url("./assets/worlds/studio.svg"); }
+[data-theme="mecha"] .world-art { background-image: url("./assets/worlds/mecha.svg"); }
+[data-theme="rock"] .world-art { background-image: url("./assets/worlds/rock.svg"); --world-op: 0.8; }
+[data-theme="metal"] .world-art { background-image: url("./assets/worlds/metal.svg"); }
+[data-theme="electro"] .world-art { background-image: url("./assets/worlds/electro.svg"); --world-op: 0.85; }
+[data-theme="cyberpunk"] .world-art { background-image: url("./assets/worlds/cyberpunk.svg"); }
+[data-theme="jpop"] .world-art { background-image: url("./assets/worlds/jpop.svg"); }
+[data-theme="mellow"] .world-art { background-image: url("./assets/worlds/mellow.svg"); }
+[data-theme="organic"] .world-art { background-image: url("./assets/worlds/organic.svg"); }
+[data-theme="sky"] .world-art { background-image: url("./assets/worlds/sky.svg"); }
+[data-theme="notebook"] .world-art { background-image: url("./assets/worlds/notebook.svg"); }
+
+/* ---- Song header: the scene, panning slowly, with a scrim behind the title ---- */
+.song-hero { isolation: isolate; }
+.song-hero-bg {
+  inset: 0 !important; filter: saturate(1.15) !important; opacity: 1 !important;
+  background-size: cover !important; background-position: center 70% !important; background-repeat: no-repeat !important;
+  animation: hero-pan 36s ease-in-out infinite alternate !important;
+}
+.song-hero-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 88%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 45%, transparent 80%);
+}
+@keyframes hero-pan { from { background-position: 30% 70%; transform: scale(1.04); } to { background-position: 70% 60%; transform: scale(1.12); } }
+:root .song-hero-bg, [data-theme="studio"] .song-hero-bg { background-image: url("./assets/worlds/studio.svg") !important; }
+[data-theme="mecha"] .song-hero-bg { background-image: url("./assets/worlds/mecha.svg") !important; }
+[data-theme="rock"] .song-hero-bg { background-image: url("./assets/worlds/rock.svg") !important; }
+[data-theme="metal"] .song-hero-bg { background-image: url("./assets/worlds/metal.svg") !important; }
+[data-theme="electro"] .song-hero-bg { background-image: url("./assets/worlds/electro.svg") !important; }
+[data-theme="cyberpunk"] .song-hero-bg { background-image: url("./assets/worlds/cyberpunk.svg") !important; }
+[data-theme="jpop"] .song-hero-bg { background-image: url("./assets/worlds/jpop.svg") !important; }
+[data-theme="mellow"] .song-hero-bg { background-image: url("./assets/worlds/mellow.svg") !important; }
+[data-theme="organic"] .song-hero-bg { background-image: url("./assets/worlds/organic.svg") !important; }
+[data-theme="sky"] .song-hero-bg { background-image: url("./assets/worlds/sky.svg") !important; }
+[data-theme="notebook"] .song-hero-bg { background-image: url("./assets/worlds/notebook.svg") !important; }
+.song-hero .project-header, .song-hero-status, .song-hero-wave { position: relative; z-index: 1; }
+.song-hero-wave { position: absolute; }
+.song-hero-status { position: absolute; }
+.song-hero .title-input { text-shadow: 0 2px 18px color-mix(in srgb, var(--bg) 80%, transparent); }
+
+/* ---- Glow & motion ---- */
+.rail-node.now { animation: now-pulse 2.4s ease-in-out infinite; }
+@keyframes now-pulse {
+  0%, 100% { box-shadow: 0 0 22px -6px color-mix(in srgb, var(--sc) 55%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--sc) 30%, transparent); }
+  50% { box-shadow: 0 0 36px 0 color-mix(in srgb, var(--sc) 75%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--sc) 50%, transparent); }
+}
+.rail-node.now .rail-bar b { background-image: linear-gradient(90deg, var(--sc), color-mix(in srgb, var(--sc) 40%, white), var(--sc)); background-size: 200% 100%; animation: shimmer 2.2s linear infinite; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: 0 0; } }
+.timebox.running .timebox-bar b { background-size: 200% 100%; background-image: linear-gradient(90deg, var(--sc), var(--accent-2), var(--sc)); animation: shimmer 2.5s linear infinite; }
+
+.flow-page .card, .project-card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.flow-page .card:hover { transform: translateY(-2px); box-shadow: var(--card-shadow), 0 14px 34px -18px color-mix(in srgb, var(--accent) 70%, transparent); }
+
+.btn.primary { position: relative; overflow: hidden; }
+.btn.primary::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent); transform: skewX(-18deg);
+}
+.btn.primary:hover::after { animation: btn-shine 0.7s ease; }
+@keyframes btn-shine { to { left: 130%; } }
+
+.gate-box[aria-pressed="true"], .card-check.ok .card-check-box, .core-done.on { animation: tick-pop 0.32s cubic-bezier(0.2, 1.6, 0.4, 1); }
+@keyframes tick-pop { 0% { transform: scale(0.6); } 100% { transform: scale(1); } }
+
+/* ---- Confetti & sparkles (lib/fx.ts) ---- */
+.fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.fx-confetti {
+  position: absolute; top: -20px; width: 9px; height: 14px; border-radius: 2px;
+  animation: confetti-fall var(--dur) cubic-bezier(0.25, 0.6, 0.4, 1) forwards;
+}
+@keyframes confetti-fall {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--dx), 110vh) rotate(var(--rot)); opacity: 0.9; }
+}
+.fx-spark {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%; margin: -3px 0 0 -3px;
+  animation: spark-fly 0.6s ease-out forwards;
+}
+@keyframes spark-fly { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; } }
