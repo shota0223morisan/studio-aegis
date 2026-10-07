@@ -4,7 +4,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { api, type ProjectDetail, type Session, type StoredFile } from "../lib/api";
 import { desktop } from "../lib/desktop";
-import { stageChecks, stageMeta, stopTimer, type Flow } from "../lib/flow";
+import { STAGES, stageChecks, stageMeta, stopTimer, type Flow } from "../lib/flow";
 import { formatDate } from "../lib/format";
 import { useLibrary } from "../lib/library";
 import { useMixChecklist, useMixTips } from "../lib/mixTips";
@@ -13,12 +13,11 @@ import { confetti } from "../lib/fx";
 import { usePrefs } from "../lib/prefs";
 import { saveLabel, useAutosave } from "../lib/useAutosave";
 import { Thumb } from "../components/Thumb";
-import { MarkdownMemo } from "../components/MarkdownMemo";
 import { FilesSection } from "../components/FilesSection";
 import { FlowRail } from "../components/flow/FlowRail";
 import { StageTimer } from "../components/flow/StageTimer";
 import { GatePanel } from "../components/flow/GatePanel";
-import { StageMemo } from "../components/flow/StageMemo";
+import { MemoDock, type MemoTab } from "../components/MemoDock";
 import { AiChat } from "../components/flow/AiChat";
 import { DecodeStage } from "../components/flow/DecodeStage";
 import { FrameStage } from "../components/flow/FrameStage";
@@ -161,7 +160,25 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
     const k = `${view}:${c.id}`;
     update((f) => ({ ...f, manual: { ...f.manual, [k]: !f.manual?.[k] } }));
   }
-  const memo = <StageMemo stage={view} initial={flow.notes?.[view] ?? ""} onSave={(text) => update((f) => ({ ...f, notes: { ...f.notes, [view]: text } }))} />;
+  const memoTabs: MemoTab[] = [
+    ...STAGES.map((s) => ({
+      id: String(s.n),
+      label: s.en,
+      sub: `STAGE 0${s.n} · ${s.jp}`,
+      value: flow.notes?.[s.n] ?? "",
+      save: async (text: string) => update((f) => ({ ...f, notes: { ...f.notes, [s.n]: text } })),
+    })),
+    {
+      id: "all",
+      label: "全体",
+      sub: "ステージに関係ないメモ",
+      value: project.structureMemo,
+      save: async (text: string) => {
+        setProject((p) => (p ? { ...p, structureMemo: text } : p));
+        await api.updateProject(project.id, { structureMemo: text });
+      },
+    },
+  ];
 
   return (
     <div className={`page song-page flow-page stage-${view}`}>
@@ -223,25 +240,18 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
           <AiChat projectId={project.id} stage={view} quick={QUICK[view] ?? []} />
           {(view === 2 || view === 3) && <SunoHelper projectId={project.id} />}
           {(view === 2 || view === 3) && <Parking stage={view} flow={flow} update={update} />}
-          {memo}
         </aside>
       </div>
 
       </GateProvider>
 
+      <MemoDock tabs={memoTabs} active={String(view)} />
+
       <details className="card archive">
         <summary>
-          <span className="sec-icon">▤</span> 全体メモ・その他のファイル
+          <span className="sec-icon">▤</span> その他のファイル
         </summary>
         <div className="archive-body">
-          <MarkdownMemo
-            key={`memo-${project.id}`}
-            icon="✎"
-            title="全体メモ"
-            initial={project.structureMemo}
-            save={(v) => api.updateProject(project.id, { structureMemo: v })}
-            placeholder="ステージに関係ないメモ"
-          />
           <FilesSection title="その他のファイル" only={["other"]} projectId={project.id} files={project.files} maxUploadBytes={session.maxUploadBytes} onFilesChange={props.onFilesChange} />
         </div>
       </details>

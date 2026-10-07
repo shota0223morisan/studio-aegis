@@ -136,6 +136,13 @@ function createFlowRouter(store) {
 
   // ---- the pre-export checklist (shared by every song; ticks are per song) ----
   const MIX_LIST_KEY = "mixChecklist";
+  // A memo that isn't tied to any song (the memo dock on home / clients / MIDI / settings).
+  router.get("/scratch", (_req, res) => res.json({ text: store.kvGet("scratch") ?? "" }));
+  router.put("/scratch", (req, res) => {
+    const text = typeof req.body?.text === "string" ? req.body.text.slice(0, 200_000) : "";
+    store.kvSet("scratch", text);
+    res.json({ text });
+  });
   router.get("/mix-checklist", (_req, res) => res.json({ items: store.kvGet(MIX_LIST_KEY) ?? null }));
   router.put("/mix-checklist", (req, res) => {
     const items = (Array.isArray(req.body?.items) ? req.body.items : [])

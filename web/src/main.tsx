@@ -8,6 +8,7 @@ import "./themes.css";
 import "./themes-bright.css";
 import "./flow.css";
 import "./worlds.css";
+import "./dock.css";
 import "./fonts";
 
 applySavedTheme();

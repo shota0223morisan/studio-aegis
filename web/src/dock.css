@@ -1,0 +1,68 @@
+/*
+ * 自分用メモ dock — outside the page scroll.
+ * Narrow window (side panes open): floats over the bottom-right corner.
+ * Wide window (FOCUS etc.): docked as a column on the right, full height.
+ * Folded: a small「✎ メモ」button in the bottom-right corner.
+ */
+.memo-slot { display: contents; }
+.memo-dock {
+  position: fixed; right: 16px; bottom: 16px; z-index: 30; width: min(340px, calc(100vw - 32px)); height: min(340px, calc(100vh - 140px));
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: var(--radius);
+  background: var(--surface); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+  animation: dock-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes dock-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+.memo-dock-head {
+  display: flex; align-items: center; gap: 8px; padding: 9px 10px 8px 14px; flex: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent);
+  border-bottom: 1px solid var(--border);
+}
+.memo-dock-head b { font-family: var(--font-brand); font-size: 13px; letter-spacing: 0.08em; }
+.memo-dock-icon { color: var(--accent); }
+.memo-dock-min { margin-left: auto; font-size: 16px; }
+.memo-dock-tabs { display: flex; gap: 2px; padding: 6px 8px 0; flex: none; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); }
+.memo-dock-tabs button {
+  position: relative; flex: 1 0 auto; padding: 6px 8px 7px; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
+  font: 600 10.5px var(--mono); letter-spacing: 0.06em; color: var(--muted);
+}
+.memo-dock-tabs button:hover { color: var(--text); }
+.memo-dock-tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+.memo-dock-tabs button.has::after {
+  content: ""; position: absolute; top: 4px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-2, var(--accent));
+}
+.memo-dock-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px 12px 12px; gap: 6px; }
+.memo-dock-sub { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.memo-dock-sub .save-state { margin: 0; font-size: 11px; }
+.memo-dock-text {
+  flex: 1; min-height: 0; width: 100%; resize: none; line-height: 1.75; font-size: 13.5px;
+  background: color-mix(in srgb, var(--text) 3%, transparent) !important; border: 1px solid var(--border); border-radius: var(--radius-input); padding: 10px 12px;
+}
+
+.memo-fab {
+  position: fixed; right: 16px; bottom: 16px; z-index: 30; display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 15px; border-radius: 999px; cursor: pointer; font: 700 13px var(--font-brand); letter-spacing: 0.06em;
+  color: var(--text); background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 18px -6px var(--accent); transition: transform 0.15s, box-shadow 0.15s;
+}
+.memo-fab:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35), 0 0 24px -4px var(--accent); }
+.memo-fab > span { color: var(--accent); }
+.memo-fab small { min-width: 18px; padding: 1px 5px; border-radius: 9px; font: 10px var(--mono); text-align: center; background: var(--accent); color: var(--bg); }
+
+/* Wide: a column on the right, under the top bar. */
+@media (min-width: 1480px) {
+  .body:has(.memo-dock) { grid-template-columns: 240px minmax(0, 1fr) 340px; }
+  .body.sidebar-closed:has(.memo-dock) { grid-template-columns: 36px minmax(0, 1fr) 340px; }
+  .memo-dock {
+    position: relative; right: auto; bottom: auto; width: auto; height: auto; min-height: 0; animation: none;
+    border-width: 0 0 0 1px; border-radius: 0; box-shadow: -10px 0 30px -18px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ---- Wide pages: use the room ---- */
+.page.flow-page { max-width: 1640px; }
+@container flow (min-width: 1300px) {
+  .flow-grid { grid-template-columns: minmax(0, 2.1fr) minmax(340px, 1fr); }
+}
+/* REF SLOTS: up to three across whenever they fit */
+.ref-slots { grid-template-columns: repeat(auto-fill, minmax(max(210px, calc((100% - 24px) / 3)), 1fr)); }

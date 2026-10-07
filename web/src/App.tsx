@@ -19,6 +19,7 @@ import { ThemeDots } from "./components/ThemePicker";
 import { Sidebar } from "./components/Sidebar";
 import { UpdateButton } from "./components/UpdateButton";
 import { PaneDivider } from "./components/PaneDivider";
+import { ScratchMemoDock } from "./components/MemoDock";
 
 export function App() {
   const location = useLocation();
@@ -144,6 +145,8 @@ function Shell() {
                 <Route path="*" element={<p className="muted">ページが見つかりません</p>} />
               </Routes>
             </main>
+            <div id="memo-slot" className="memo-slot" />
+            {!location.pathname.startsWith("/p/") && <ScratchMemoDock />}
           </div>
           {note && (
             <div key={note.id} className={`toast ${note.error ? "error" : ""}`} role="status">
