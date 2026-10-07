@@ -160,25 +160,19 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
     const k = `${view}:${c.id}`;
     update((f) => ({ ...f, manual: { ...f.manual, [k]: !f.manual?.[k] } }));
   }
-  const memoTabs: MemoTab[] = [
-    ...STAGES.map((s) => ({
-      id: String(s.n),
-      label: s.en,
-      sub: `STAGE 0${s.n} · ${s.jp}`,
-      value: flow.notes?.[s.n] ?? "",
-      save: async (text: string) => update((f) => ({ ...f, notes: { ...f.notes, [s.n]: text } })),
-    })),
-    {
-      id: "all",
-      label: "全体",
-      sub: "ステージに関係ないメモ",
-      value: project.structureMemo,
-      save: async (text: string) => {
-        setProject((p) => (p ? { ...p, structureMemo: text } : p));
-        await api.updateProject(project.id, { structureMemo: text });
-      },
+  const memoTab: MemoTab = {
+    id: "song",
+    label: "メモ",
+    sub: project.name,
+    value: withLegacyNotes(project.structureMemo, flow),
+    save: async (text: string) => {
+      setProject((p) => (p ? { ...p, structureMemo: text } : p));
+      await api.updateProject(project.id, { structureMemo: text });
+      // The old per-stage memos now live in the song memo.
+      if (Object.values(flowRef.current.notes ?? {}).some((t) => t?.trim())) update((f) => ({ ...f, notes: {} }));
     },
-  ];
+    placeholder: "この曲のメモ(どのステージからでも同じメモ)",
+  };
 
   return (
     <div className={`page song-page flow-page stage-${view}`}>
@@ -245,7 +239,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
 
       </GateProvider>
 
-      <MemoDock tabs={memoTabs} active={String(view)} />
+      <MemoDock tabs={[memoTab]} />
 
       <details className="card archive">
         <summary>
@@ -263,6 +257,17 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
       )}
     </div>
   );
+}
+
+/**
+ * Songs from before the one-memo dock kept a memo per stage too: add any of those the song memo
+ * doesn't already contain, under the stage's name (saved into the song memo on the next edit).
+ */
+function withLegacyNotes(memo: string, flow: Flow) {
+  const extra = STAGES.map((s) => [s.en, flow.notes?.[s.n]?.trim() ?? ""] as const)
+    .filter(([, t]) => t && !memo.includes(t))
+    .map(([en, t]) => `## ${en}\n${t}`);
+  return [memo.trim(), ...extra].filter(Boolean).join("\n\n");
 }
 
 /** The client's brief, folded, on every stage after DECODE. */

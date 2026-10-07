@@ -154,7 +154,7 @@ export function MemoDock({ tabs, active: activeProp, title = "自分用メモ" }
       </aside>
     ) : (
       <button className="memo-fab" onClick={() => setOpen(true)} title="自分用メモを開く">
-        <span aria-hidden>✎</span> メモ{filled > 0 && <small>{filled}</small>}
+        <span aria-hidden>✎</span> メモ{filled > 0 && (tabs.length > 1 ? <small>{filled}</small> : <i className="memo-fab-dot" aria-label="書いてあります" />)}
       </button>
     ),
     slot,

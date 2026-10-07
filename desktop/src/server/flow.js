@@ -68,8 +68,8 @@ function songContext(db, project) {
   if (coreLines.length) lines.push(`【核パート】\n${coreLines.join("\n")}`);
   const parts = (f.parts ?? []).filter((p) => p.name);
   if (parts.length) lines.push(`【上物】\n${parts.map((p) => `${p.name}: ${p.done ? "済" : "未"}${p.ref ? ` / 参考 ${p.ref}` : ""}${p.point ? ` ${p.point}` : ""}`).join("\n")}`);
-  const note = f.notes?.[project.stage];
-  if (note?.trim()) lines.push(`\n【このステージの本人メモ】\n${note.trim().slice(0, 3000)}`);
+  const note = project.structure_memo;
+  if (note?.trim()) lines.push(`\n【本人メモ】\n${note.trim().slice(0, 3000)}`);
   return lines.join("\n");
 }
 

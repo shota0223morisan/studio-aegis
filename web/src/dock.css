@@ -78,3 +78,4 @@ body.memo-resizing iframe, body.memo-resizing textarea { pointer-events: none; }
 }
 /* REF SLOTS: up to three across whenever they fit */
 .ref-slots { grid-template-columns: repeat(auto-fill, minmax(max(210px, calc((100% - 24px) / 3)), 1fr)); }
+.memo-fab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2, var(--accent)); box-shadow: 0 0 8px var(--accent-2, var(--accent)); }
