@@ -6,7 +6,7 @@
  */
 .memo-slot { display: contents; }
 .memo-dock {
-  position: fixed; right: 16px; bottom: 16px; z-index: 30; width: min(340px, calc(100vw - 32px)); height: min(340px, calc(100vh - 140px));
+  position: fixed; right: 16px; bottom: 16px; z-index: 30;
   display: flex; flex-direction: column; overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: var(--radius);
   background: var(--surface); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
@@ -20,7 +20,20 @@
 }
 .memo-dock-head b { font-family: var(--font-brand); font-size: 13px; letter-spacing: 0.08em; }
 .memo-dock-icon { color: var(--accent); }
-.memo-dock-min { margin-left: auto; font-size: 16px; }
+.memo-dock-tools { margin-left: auto; display: flex; gap: 2px; }
+.memo-dock-tools .icon-btn { font-size: 14px; }
+
+/* resize handles */
+.memo-resize-corner {
+  position: absolute; left: 0; top: 0; z-index: 2; width: 18px; height: 18px; cursor: nwse-resize;
+  background: linear-gradient(135deg, var(--accent) 0 3px, transparent 3px), linear-gradient(135deg, transparent 6px, color-mix(in srgb, var(--accent) 60%, transparent) 6px 8px, transparent 8px);
+  opacity: 0.6; border-top-left-radius: var(--radius);
+}
+.memo-resize-corner:hover { opacity: 1; }
+.memo-resize-edge { position: absolute; left: -3px; top: 0; bottom: 0; z-index: 2; width: 7px; cursor: ew-resize; }
+.memo-resize-edge:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+body.memo-resizing { user-select: none; cursor: grabbing; }
+body.memo-resizing iframe, body.memo-resizing textarea { pointer-events: none; }
 .memo-dock-tabs { display: flex; gap: 2px; padding: 6px 8px 0; flex: none; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); }
 .memo-dock-tabs button {
   position: relative; flex: 1 0 auto; padding: 6px 8px 7px; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
@@ -49,15 +62,14 @@
 .memo-fab > span { color: var(--accent); }
 .memo-fab small { min-width: 18px; padding: 1px 5px; border-radius: 9px; font: 10px var(--mono); text-align: center; background: var(--accent); color: var(--bg); }
 
-/* Wide: a column on the right, under the top bar. */
-@media (min-width: 1480px) {
-  .body:has(.memo-dock) { grid-template-columns: 240px minmax(0, 1fr) 340px; }
-  .body.sidebar-closed:has(.memo-dock) { grid-template-columns: 36px minmax(0, 1fr) 340px; }
-  .memo-dock {
-    position: relative; right: auto; bottom: auto; width: auto; height: auto; min-height: 0; animation: none;
-    border-width: 0 0 0 1px; border-radius: 0; box-shadow: -10px 0 30px -18px rgba(0, 0, 0, 0.4);
-  }
+/* Docked (wide window): a column on the right, under the top bar. */
+.body:has(.memo-dock.docked) { grid-template-columns: 240px minmax(0, 1fr) var(--memo-w, 340px); }
+.body.sidebar-closed:has(.memo-dock.docked) { grid-template-columns: 36px minmax(0, 1fr) var(--memo-w, 340px); }
+.memo-dock.docked {
+  position: relative; right: auto; bottom: auto; min-height: 0; overflow: visible; animation: none;
+  border-width: 0 0 0 1px; border-radius: 0; box-shadow: -10px 0 30px -18px rgba(0, 0, 0, 0.4);
 }
+.memo-dock.docked > :not(.memo-resize-edge) { overflow: hidden; }
 
 /* ---- Wide pages: use the room ---- */
 .page.flow-page { max-width: 1640px; }
