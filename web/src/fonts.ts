@@ -16,4 +16,8 @@ import "@fontsource/outfit/800.css";
 import "@fontsource/cormorant-garamond/600-italic.css";
 import "@fontsource/shippori-mincho/500.css";
 import "@fontsource/shippori-mincho/700.css";
+import "@fontsource/fraunces/700.css";
+import "@fontsource/fraunces/700-italic.css";
+import "@fontsource/klee-one/600.css";
+import "@fontsource/caveat/700.css";
 import "@fontsource/chakra-petch/600.css";

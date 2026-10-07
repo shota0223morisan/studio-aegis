@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type ThemeId = "studio" | "mecha" | "rock" | "metal" | "electro" | "cyberpunk" | "jpop" | "mellow";
+export type ThemeId = "studio" | "mecha" | "rock" | "metal" | "electro" | "cyberpunk" | "jpop" | "mellow" | "organic" | "sky" | "notebook";
 
 export const THEMES: { id: ThemeId; name: string; desc: string; swatch: string[] }[] = [
   { id: "studio", name: "STUDIO", desc: "シンプル。Mac のライト/ダークに合わせる", swatch: ["#f6f5f2", "#1a1a1a", "#3b6fd8"] },
@@ -10,6 +10,9 @@ export const THEMES: { id: ThemeId; name: string; desc: string; swatch: string[]
   { id: "electro", name: "ELECTRO", desc: "クラブの照明。ネオン×グラデーション", swatch: ["#06051a", "#00e5ff", "#ff2bd6"] },
   { id: "cyberpunk", name: "CYBERPUNK", desc: "夜の街の HUD。イエロー×シアン×走査線", swatch: ["#0a0a10", "#fcee0a", "#00f0ff"] },
   { id: "jpop", name: "J-POP FRESH", desc: "明るく爽やか。クリーム×グリーン×コーラル", swatch: ["#f2ead9", "#12a06a", "#ff7a45"] },
+  { id: "organic", name: "ORGANIC", desc: "リネン×セージ×テラコッタ。足元に草、葉っぱ", swatch: ["#f1ece0", "#5f8a4e", "#c0703f"] },
+  { id: "sky", name: "SKY", desc: "朝の空。流れる雲と波", swatch: ["#e7f3fb", "#2a87cf", "#ff9a55"] },
+  { id: "notebook", name: "NOTEBOOK", desc: "罫線ノート×青インク×マスキングテープ", swatch: ["#f3efe5", "#3556b8", "#f6d77a"] },
   { id: "mellow", name: "J-POP MELLOW", desc: "オシャレしっとり。夜×シャンパンゴールド×ローズ", swatch: ["#17110f", "#d8b07a", "#c46a7a"] },
 ];
 

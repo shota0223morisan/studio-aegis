@@ -44,7 +44,7 @@ export function GatePanel({
       ) : (
         <ul className="gate-list">
           {checks.map((c) => (
-            <li key={c.id} className={`${c.ok ? "ok" : ""} ${c.auto ? "auto" : ""}`}>
+            <li key={c.id} className={`${c.ok ? "ok" : ""} ${c.auto ? "is-auto" : ""}`}>
               <button
                 className="gate-box"
                 onClick={() => !c.auto && onToggle(c)}

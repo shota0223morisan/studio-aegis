@@ -27,7 +27,7 @@ export function CardChecks({ ids }: { ids: string[] }) {
         <button
           key={c.id}
           type="button"
-          className={`card-check ${c.ok ? "ok" : ""} ${c.auto ? "auto" : ""}`}
+          className={`card-check ${c.ok ? "ok" : ""} ${c.auto ? "is-auto" : ""}`}
           onClick={() => !c.auto && ctx.toggle(c)}
           aria-pressed={c.ok}
           title={c.auto ? "入力済み" : c.ok ? "チェックを外す" : "決めたらチェック(EXIT GATE に反映)"}
