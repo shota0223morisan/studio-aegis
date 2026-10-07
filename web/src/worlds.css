@@ -95,5 +95,14 @@
 }
 @keyframes spark-fly { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; } }
 
-/* ELECTRO's scene is bright behind glass cards — tint the glass so text keeps its contrast */
-html[data-theme="electro"] { --card-bg: rgba(16, 8, 46, 0.55); }
+/* ELECTRO's scene is bright: cards, bars and the sidebar go (almost) solid so lasers never run under text */
+html[data-theme="electro"] {
+  --card-bg: rgba(20, 11, 50, 0.94);
+  --surface: rgba(28, 16, 64, 0.94);
+  --surface-2: rgba(38, 24, 80, 0.96);
+}
+html[data-theme="electro"] .sidebar { background: rgba(14, 8, 38, 0.92); }
+
+/* Locked stages fade their content, not their tile — otherwise the scene shows through the text */
+.rail-node.locked { opacity: 1; }
+.rail-node.locked > * { opacity: 0.5; }
