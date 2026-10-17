@@ -72,10 +72,11 @@ function explain(message) {
 
 /**
  * One `claude -p` run.
- * @param {{ system: string, prompt: string, model?: string, schema?: object, onText?: (t: string) => void, signal?: AbortSignal }} opts
+ * @param {{ system: string, prompt: string, model?: string, schema?: object, tools?: string[], onText?: (t: string) => void, signal?: AbortSignal }} opts
+ *   tools: built-in tools to allow for this run (e.g. ["WebSearch", "WebFetch"]); none by default.
  * @returns {Promise<{ text: string, structured: any }>}
  */
-function run({ system, prompt, model = "claude", schema, onText, signal }) {
+function run({ system, prompt, model = "claude", schema, tools = [], onText, signal }) {
   const binary = findClaude();
   if (!binary) return Promise.reject(new AiError(NOT_FOUND));
   const args = [
@@ -83,8 +84,9 @@ function run({ system, prompt, model = "claude", schema, onText, signal }) {
     "--output-format", "stream-json", "--verbose", "--include-partial-messages",
     "--safe-mode", "--setting-sources", "", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands",
     "--system-prompt", system,
-    "--tools", "",
+    "--tools", tools.join(","),
   ];
+  if (tools.length) args.push("--allowedTools", ...tools);
   if (MODELS.includes(model) && model !== "claude") args.push("--model", model);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
 

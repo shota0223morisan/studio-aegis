@@ -7,6 +7,8 @@ import { toast } from "../../lib/toast";
 import { GEN_STYLES, KEY_OPTIONS, chordName, formatProgression, generate, parseProgression, splitBySection, type GenStyle } from "../../lib/theory";
 import { IdeasPanel } from "../IdeasPanel";
 import { MidiSection } from "./MidiSection";
+import { ChordView } from "./ChordView";
+import { fromAi } from "../../lib/chordScan";
 import type { StageProps } from "./types";
 
 const SECTION_CLASS: Record<string, string> = { Intro: "si", Outro: "si", A: "sa", B: "sb", サビ: "ss", 落ちサビ: "ss", 間奏: "sx", Dメロ: "sx" };
@@ -144,6 +146,22 @@ function sectionBeats(flow: Flow, section: string, chordCount: number) {
 function ChordRows({ flow, update, projectId, bpm }: Pick<StageProps, "flow" | "update"> & { projectId: string; bpm: number }) {
   const [line, setLine] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [song, setSong] = useState({ title: flow.chordLookup?.title ?? "", artist: flow.chordLookup?.artist ?? "" });
+  const [looking, setLooking] = useState(false);
+
+  /** Look an existing song's chords up on the web (AI), shown as degrees. */
+  async function lookup() {
+    if (!song.title.trim()) return;
+    setLooking(true);
+    try {
+      const scan = fromAi(await api.aiRefChords(projectId, song.title.trim(), song.artist.trim()));
+      update((f) => ({ ...f, chordLookup: { ...scan, title: song.title.trim(), artist: song.artist.trim() } }));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "調べられませんでした", { error: true });
+    } finally {
+      setLooking(false);
+    }
+  }
   const key = flow.key ?? 0;
   const names = [...new Set((flow.structure ?? []).map((s) => s.name))];
   const rows = names.length ? names : ["全体"];
@@ -212,6 +230,42 @@ function ChordRows({ flow, update, projectId, bpm }: Pick<StageProps, "flow" | "
           <input value={line} placeholder="一言で: サビ 4536 A: 1645 B 2536 / 6フラット7フラット1" onChange={(e) => setLine(e.target.value)} />
         </form>
       </div>
+      <div className="chord-lookup">
+        <span className="chord-lookup-label">既存曲のコード</span>
+        {(flow.refs ?? []).map((r, i) =>
+          filled(r) ? (
+            <button key={i} className="chip-btn" onClick={() => setSong({ title: r.title, artist: r.artist })} title={`${r.title} を入れる`}>
+              {SLOT_KEYS[i]}
+            </button>
+          ) : null,
+        )}
+        <form
+          className="chord-lookup-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void lookup();
+          }}
+        >
+          <input value={song.title} placeholder="曲名" onChange={(e) => setSong({ ...song, title: e.target.value })} />
+          <input value={song.artist} placeholder="アーティスト" onChange={(e) => setSong({ ...song, artist: e.target.value })} />
+          <button className="btn small" disabled={looking || !song.title.trim()} title="AI がネットで調べて、度数で出します">
+            {looking ? "調べています…" : "ネットで調べる"}
+          </button>
+        </form>
+      </div>
+      {looking && <p className="muted small">コード譜のサイトなどを調べています(1〜2 分かかることがあります)</p>}
+      {flow.chordLookup && !looking && (
+        <div className="chord-lookup-result">
+          <p className="small">
+            <b>{flow.chordLookup.title}</b>
+            {flow.chordLookup.artist && <span className="muted"> / {flow.chordLookup.artist}</span>}
+            <button className="link-btn" onClick={() => update((f) => ({ ...f, chordLookup: undefined }))}>
+              閉じる
+            </button>
+          </p>
+          <ChordView scan={flow.chordLookup} onUse={(name, prog) => setLine((l) => `${l ? `${l} ` : ""}${name}: ${prog}`)} />
+        </div>
+      )}
       <div className="chord-rows">
         {rows.map((name) => {
           const text = get(name);

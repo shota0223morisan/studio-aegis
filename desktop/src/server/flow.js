@@ -250,7 +250,8 @@ function createFlowRouter(store) {
   });
 
   /** A style prompt for Suno (waveform generation happens on suno.com in the side pane). */
-  // The chord progression of a reference song, from what Claude knows of it (no audio needed).
+  // The chord progression of an existing song: Claude looks it up on the web (chord-chart sites)
+  // and answers in chord names; the app turns them into degrees.
   router.post("/projects/:id/ai/ref-chords", loadProject, async (req, res) => {
     const title = str(req.body?.title, 200)?.trim();
     const artist = str(req.body?.artist, 200)?.trim() ?? "";
@@ -258,7 +259,7 @@ function createFlowRouter(store) {
     const schema = {
       type: "object",
       properties: {
-        known: { type: "boolean", description: "この曲のコード進行を確かに知っているか。曖昧なら false" },
+        known: { type: "boolean", description: "コード進行を確かめられたか。見つからない・曖昧なら false" },
         key: { type: "string", description: "原曲のキー。例: C、F#m、Bb。わからなければ空" },
         sections: {
           type: "array",
@@ -266,28 +267,38 @@ function createFlowRouter(store) {
             type: "object",
             properties: {
               name: { type: "string", description: "Intro / A / B / サビ / Dメロ など" },
-              chords: { type: "string", description: "コードネームをスペース区切りで 1 周分。例: F G Em Am" },
+              chords: { type: "string", description: "コードネームをスペース区切りで 1 周分(原曲キー)。例: F G Em Am" },
             },
             required: ["name", "chords"],
           },
         },
-        note: { type: "string", description: "補足(転調・特徴的な借用和音など)。日本語・60字以内" },
+        sources: {
+          type: "array",
+          items: { type: "object", properties: { title: { type: "string" }, url: { type: "string" } }, required: ["url"] },
+          description: "参考にしたページ",
+        },
+        note: { type: "string", description: "補足(転調・特徴的な借用和音・カポなど)。日本語・60字以内" },
       },
       required: ["known", "sections"],
     };
     const prompt =
       `曲: ${title}${artist ? ` / ${artist}` : ""}\n\n` +
-      "この曲のコード進行を、セクションごとに 1 周分ずつ教えてください(原曲のキーで、コードネームで)。" +
-      "確かに知っている曲だけ答えてください。うろ覚え・推測になるなら known を false にして、sections は空にしてください。" +
-      "でっち上げは絶対にしないこと。";
+      "この曲のコード進行を、ネットで調べてください(コード譜のサイトなど)。" +
+      "見つかったら、セクションごとに 1 周分ずつ、原曲のキーのコードネームで答えてください。" +
+      "カポ表記のページは、実際に鳴っているキーに直してください。参考にしたページの URL も入れてください。" +
+      "見つからない・別の曲しか出てこない・確かめられない場合は known を false にして、sections は空にしてください。でっち上げは絶対にしないこと。";
     try {
-      const out = await ai.run({ system: systemFor(1), prompt, schema, model: prefs().aiModel, signal: abortOnClose(req, res) });
+      const out = await ai.run({ system: systemFor(1), prompt, schema, tools: ["WebSearch", "WebFetch"], model: prefs().aiModel, signal: abortOnClose(req, res) });
       const r = out.structured ?? {};
       const sections = (Array.isArray(r.sections) ? r.sections : [])
         .map((s) => ({ name: String(s?.name ?? "").slice(0, 30), chords: String(s?.chords ?? "").slice(0, 300) }))
         .filter((s) => s.chords.trim())
         .slice(0, 12);
-      res.json({ known: Boolean(r.known) && sections.length > 0, key: String(r.key ?? "").slice(0, 8), sections, note: String(r.note ?? "").slice(0, 200) });
+      const sources = (Array.isArray(r.sources) ? r.sources : [])
+        .map((s) => ({ title: String(s?.title ?? "").slice(0, 100), url: String(s?.url ?? "") }))
+        .filter((s) => /^https?:\/\//.test(s.url))
+        .slice(0, 4);
+      res.json({ known: Boolean(r.known) && sections.length > 0, key: String(r.key ?? "").slice(0, 8), sections, sources, note: String(r.note ?? "").slice(0, 200) });
     } catch (err) {
       aiError(res, err);
     }

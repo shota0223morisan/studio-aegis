@@ -267,7 +267,7 @@ export const api = {
   aiMessages: (id: string, stage: number) => request<{ items: AiMessage[] }>(`/api/projects/${id}/ai?stage=${stage}`),
   aiClear: (id: string, stage: number) => request(`/api/projects/${id}/ai?stage=${stage}`, json("DELETE")),
   aiRefChords: (id: string, title: string, artist: string) =>
-    request<{ known: boolean; key: string; sections: { name: string; chords: string }[]; note: string }>(`/api/projects/${id}/ai/ref-chords`, json("POST", { title, artist })),
+    request<{ known: boolean; key: string; sections: { name: string; chords: string }[]; sources: { title: string; url: string }[]; note: string }>(`/api/projects/${id}/ai/ref-chords`, json("POST", { title, artist })),
   aiSimilar: (id: string, focus?: string) => request<{ items: SimilarSong[]; at: string }>(`/api/projects/${id}/ai/similar`, json("POST", { focus })),
   aiSuno: (id: string, part?: string) => request<{ style: string; exclude: string; note: string }>(`/api/projects/${id}/ai/suno`, json("POST", { part })),
   aiMidi: (id: string, body: { kind: string; bars: number; prompt: string; section?: string; refClipId?: string }) =>

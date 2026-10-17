@@ -24,6 +24,8 @@ export interface ChordScan {
   timeline?: { at: number; prog: string }[];
   /** From the AI: per section. */
   sections?: { name: string; prog: string }[];
+  /** Pages the AI looked the chords up on. */
+  sources?: { title: string; url: string }[];
   note?: string;
   at: string;
 }
@@ -381,10 +383,10 @@ function fft(re: Float64Array, im: Float64Array) {
   }
 }
 
-/** The AI's answer (chord names in the original key) → degrees, like the audio scan. */
-export function fromAi(r: { known: boolean; key: string; sections: { name: string; chords: string }[]; note?: string }): ChordScan {
+/** The AI's web lookup (chord names in the original key) → degrees, like the audio scan. */
+export function fromAi(r: { known: boolean; key: string; sections: { name: string; chords: string }[]; sources?: { title: string; url: string }[]; note?: string }): ChordScan {
   const at = new Date().toISOString();
-  if (!r.known) return { source: "ai", key: 0, sections: [], note: r.note, at };
+  if (!r.known) return { source: "ai", key: 0, sections: [], sources: r.sources, note: r.note, at };
   const m = r.key.trim().match(/^([A-Ga-g])([#♯b♭]?)(m(?!aj))?/);
   let key: number;
   let minor = false;
@@ -403,5 +405,5 @@ export function fromAi(r: { known: boolean; key: string; sections: { name: strin
     }
   }
   const sections = r.sections.map((s) => ({ name: s.name, prog: formatProgression(parseProgression(s.chords, key)) })).filter((s) => s.prog);
-  return { source: "ai", key, minor, sections, note: r.note, at };
+  return { source: "ai", key, minor, sections, sources: r.sources, note: r.note, at };
 }

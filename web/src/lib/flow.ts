@@ -78,6 +78,8 @@ export interface Flow {
   key?: number;
   startWith?: string;
   chords?: { section: string; prog: string }[];
+  /** Last "既存曲のコードを調べる" result in FRAME. */
+  chordLookup?: ChordScan & { title: string; artist: string };
   core?: { drums?: CorePart; bass?: CorePart; harmony?: CorePart };
   parts?: LayerPart[];
   parked?: ParkedItem[];
