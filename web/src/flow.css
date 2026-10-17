@@ -171,7 +171,7 @@ button.gate-box { cursor: pointer; }
   position: absolute; top: -10px; left: 10px; font-family: var(--font-brand); font-weight: 800; font-size: 11.5px;
   padding: 1px 8px; border-radius: 3px; background: var(--k); color: #04121a;
 }
-.ref-title { font-weight: 700; padding: 5px 8px; }
+.ref-slot .ref-title { flex: none; font-weight: 700; padding: 5px 8px; }
 .ref-artist { font-size: 12.5px; padding: 4px 8px; }
 .ref-src { display: flex; flex-wrap: wrap; gap: 4px; }
 .ref-audio { width: 100%; height: 32px; }
@@ -473,3 +473,34 @@ input.midi-name:hover { border-color: var(--border); }
 .check-deleted ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .check-deleted li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; background: var(--surface-2); }
 .check-deleted li span { flex: 1; color: var(--muted); text-decoration: line-through; }
+
+/* ---- REF SLOTS: extracted chords ---- */
+.ref-chords {
+  margin-top: 2px; padding: 8px 10px; border-radius: var(--radius-input);
+  border: 1px solid color-mix(in srgb, var(--k) 35%, var(--border)); background: color-mix(in srgb, var(--k) 6%, transparent);
+}
+.ref-chords-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.ref-chords-head b { font: 700 11px var(--mono); letter-spacing: 0.14em; color: var(--k); }
+.ref-chords-tools { margin-left: auto; display: flex; gap: 8px; }
+.ai-badge {
+  font: 10px var(--mono); padding: 0 5px; border-radius: 4px; white-space: nowrap;
+  color: var(--accent-2, var(--accent)); border: 1px solid color-mix(in srgb, var(--accent-2, var(--accent)) 50%, transparent);
+}
+.link-btn { border: 0; background: none; padding: 0; cursor: pointer; font-size: 11.5px; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:hover { color: var(--text); }
+.ref-chord-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ref-chord-rows li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.chord-prog { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.chord-prog b { font: 600 12.5px var(--mono); overflow-wrap: anywhere; }
+.chord-prog small { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.chord-count { font: 11px var(--mono); color: var(--muted); }
+.chord-sec { font: 600 11px var(--mono); color: var(--k); min-width: 34px; }
+.chord-time {
+  font: 11px var(--mono); padding: 1px 6px; border-radius: 4px; cursor: pointer;
+  color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid var(--border);
+}
+.chord-time:disabled { cursor: default; opacity: 0.7; }
+.chord-timeline { margin-top: 6px; font-size: 12px; }
+.chord-timeline summary { cursor: pointer; color: var(--muted); font-size: 11.5px; }
+.chord-timeline ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 220px; overflow: auto; }
+.chord-timeline li { display: flex; gap: 8px; align-items: center; font: 11.5px var(--mono); }

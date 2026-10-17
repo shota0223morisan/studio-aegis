@@ -1,5 +1,6 @@
 import type { PanePreset } from "./desktop";
 import type { ProjectDetail } from "./api";
+import type { ChordScan } from "./chordScan";
 
 /** The 5 stages of a track. */
 export const STAGES = [
@@ -25,6 +26,8 @@ export interface RefSlot {
   key?: string; // shown only — never used for comparison
   keyAuto?: boolean;
   use?: string; // 活かす所
+  /** Chord progression, from the attached audio or the AI. */
+  chords?: ChordScan;
 }
 
 export interface Section {

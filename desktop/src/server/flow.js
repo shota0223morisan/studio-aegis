@@ -250,6 +250,49 @@ function createFlowRouter(store) {
   });
 
   /** A style prompt for Suno (waveform generation happens on suno.com in the side pane). */
+  // The chord progression of a reference song, from what Claude knows of it (no audio needed).
+  router.post("/projects/:id/ai/ref-chords", loadProject, async (req, res) => {
+    const title = str(req.body?.title, 200)?.trim();
+    const artist = str(req.body?.artist, 200)?.trim() ?? "";
+    if (!title) return res.status(400).json({ error: "曲名を入れてください" });
+    const schema = {
+      type: "object",
+      properties: {
+        known: { type: "boolean", description: "この曲のコード進行を確かに知っているか。曖昧なら false" },
+        key: { type: "string", description: "原曲のキー。例: C、F#m、Bb。わからなければ空" },
+        sections: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Intro / A / B / サビ / Dメロ など" },
+              chords: { type: "string", description: "コードネームをスペース区切りで 1 周分。例: F G Em Am" },
+            },
+            required: ["name", "chords"],
+          },
+        },
+        note: { type: "string", description: "補足(転調・特徴的な借用和音など)。日本語・60字以内" },
+      },
+      required: ["known", "sections"],
+    };
+    const prompt =
+      `曲: ${title}${artist ? ` / ${artist}` : ""}\n\n` +
+      "この曲のコード進行を、セクションごとに 1 周分ずつ教えてください(原曲のキーで、コードネームで)。" +
+      "確かに知っている曲だけ答えてください。うろ覚え・推測になるなら known を false にして、sections は空にしてください。" +
+      "でっち上げは絶対にしないこと。";
+    try {
+      const out = await ai.run({ system: systemFor(1), prompt, schema, model: prefs().aiModel, signal: abortOnClose(req, res) });
+      const r = out.structured ?? {};
+      const sections = (Array.isArray(r.sections) ? r.sections : [])
+        .map((s) => ({ name: String(s?.name ?? "").slice(0, 30), chords: String(s?.chords ?? "").slice(0, 300) }))
+        .filter((s) => s.chords.trim())
+        .slice(0, 12);
+      res.json({ known: Boolean(r.known) && sections.length > 0, key: String(r.key ?? "").slice(0, 8), sections, note: String(r.note ?? "").slice(0, 200) });
+    } catch (err) {
+      aiError(res, err);
+    }
+  });
+
   router.post("/projects/:id/ai/suno", loadProject, async (req, res) => {
     const p = res.locals.project;
     const schema = {

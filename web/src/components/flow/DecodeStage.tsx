@@ -40,7 +40,7 @@ export function DecodeStage({ project, flow, update, session, onFilesChange, pat
         </div>
       </section>
 
-      <RefSlots flow={flow} update={update} files={project.files} />
+      <RefSlots flow={flow} update={update} files={project.files} projectId={project.id} />
 
       <section className="card">
         <div className="section-head">

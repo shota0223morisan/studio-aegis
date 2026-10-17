@@ -1,5 +1,8 @@
-import { useState } from "react";
-import type { StoredFile } from "../../lib/api";
+import { useRef, useState } from "react";
+import { api, type StoredFile } from "../../lib/api";
+import { fromAi, scanChords, type ChordScan } from "../../lib/chordScan";
+import { chordName, KEY_OPTIONS, parseProgression } from "../../lib/theory";
+import { toast } from "../../lib/toast";
 import { analyzeAudio } from "../../lib/audio";
 import { desktop } from "../../lib/desktop";
 import { filled, SLOT_KEYS, spotifySearch, type Flow, type RefSlot } from "../../lib/flow";
@@ -13,7 +16,7 @@ export function openSpotify(q: string) {
 }
 
 /** REF SLOTS: the 3 reference songs (A/B/C, more can be added) and what to take from each. */
-export function RefSlots({ flow, update, files }: { flow: Flow; update: (fn: (f: Flow) => Flow) => void; files: StoredFile[] }) {
+export function RefSlots({ flow, update, files, projectId }: { flow: Flow; update: (fn: (f: Flow) => Flow) => void; files: StoredFile[]; projectId: string }) {
   const refs = flow.refs ?? [];
   const count = Math.max(3, refs.length);
   const slots = Array.from({ length: count }, (_, i) => refs[i] ?? { title: "", artist: "" });
@@ -42,15 +45,17 @@ export function RefSlots({ flow, update, files }: { flow: Flow; update: (fn: (f:
       </div>
       <div className="ref-slots">
         {slots.map((slot, i) => (
-          <Slot key={i} index={i} slot={slot} audio={audio} onChange={(p) => setSlot(i, p)} />
+          <Slot key={i} index={i} slot={slot} audio={audio} projectId={projectId} onChange={(p) => setSlot(i, p)} />
         ))}
       </div>
     </section>
   );
 }
 
-function Slot({ index, slot, audio, onChange }: { index: number; slot: RefSlot; audio: StoredFile[]; onChange: (p: Partial<RefSlot> | null) => void }) {
+function Slot({ index, slot, audio, projectId, onChange }: { index: number; slot: RefSlot; audio: StoredFile[]; projectId: string; onChange: (p: Partial<RefSlot> | null) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [chordBusy, setChordBusy] = useState<string | null>(null);
+  const player = useRef<HTMLAudioElement>(null);
   const [error, setError] = useState<string | null>(null);
   const key = SLOT_KEYS[index];
   const file = audio.find((f) => f.id === slot.fileId);
@@ -75,8 +80,28 @@ function Slot({ index, slot, audio, onChange }: { index: number; slot: RefSlot; 
       });
     } catch {
       setError("この音源は解析できませんでした");
+      return;
     } finally {
       setBusy(null);
+    }
+    await extractChords(f);
+  }
+
+  /** Chords from the attached audio, or (no audio) from what the AI knows of the song. */
+  async function extractChords(f: StoredFile | undefined = file, viaAi = false) {
+    setError(null);
+    try {
+      if (f && !viaAi) {
+        setChordBusy("音源からコードを抽出中…");
+        onChange({ chords: await scanChords(f.url) });
+      } else if (slot.title.trim()) {
+        setChordBusy("AI に聞いています…");
+        onChange({ chords: fromAi(await api.aiRefChords(projectId, slot.title, slot.artist)) });
+      }
+    } catch (e) {
+      setError(e instanceof Error && viaAi ? e.message : "コードを抽出できませんでした");
+    } finally {
+      setChordBusy(null);
     }
   }
 
@@ -121,8 +146,18 @@ function Slot({ index, slot, audio, onChange }: { index: number; slot: RefSlot; 
             </button>
           </>
         )}
+        {(file || slot.title.trim()) && (
+          <button
+            className="chip-btn chord-btn"
+            disabled={Boolean(chordBusy)}
+            onClick={() => void extractChords()}
+            title={file ? "添付音源からコード進行を抽出" : "AI に、この曲のコード進行を聞く(知っている曲だけ答えます)"}
+          >
+            ♪ コード
+          </button>
+        )}
       </div>
-      {file && <audio src={file.url} controls preload="none" className="ref-audio" />}
+      {file && <audio ref={player} src={file.url} controls preload="none" className="ref-audio" />}
       <dl className="ref-kv">
         <dt>BPM</dt>
         <dd>
@@ -136,6 +171,23 @@ function Slot({ index, slot, audio, onChange }: { index: number; slot: RefSlot; 
         </dd>
       </dl>
       {busy && <p className="muted small">{busy}</p>}
+      {chordBusy && <p className="muted small">{chordBusy}</p>}
+      {slot.chords && !chordBusy && (
+        <ChordView
+          scan={slot.chords}
+          onSeek={
+            slot.chords.source === "audio" && player.current
+              ? (t) => {
+                  const a = player.current!;
+                  a.currentTime = t;
+                  void a.play();
+                }
+              : undefined
+          }
+          onAi={slot.chords.source === "audio" && slot.title.trim() ? () => void extractChords(undefined, true) : undefined}
+          onAudio={slot.chords.source === "ai" && file ? () => void extractChords(file) : undefined}
+        />
+      )}
       {error && <p className="error small">{error}</p>}
       <label className="ref-use">
         <span>活かす所</span>
@@ -145,6 +197,102 @@ function Slot({ index, slot, audio, onChange }: { index: number; slot: RefSlot; 
         <button className="icon-btn danger ref-clear" onClick={() => onChange(null)} title="この枠を空にする">
           ×
         </button>
+      )}
+    </div>
+  );
+}
+
+const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
+async function copy(text: string) {
+  try {
+    if (desktop) await desktop.copyText(text);
+    else await navigator.clipboard.writeText(text);
+    toast("コピーしました(骨組みのコード進行の一言入力に貼れます)");
+  } catch {
+    toast("コピーできませんでした", { error: true });
+  }
+}
+
+/** The extracted progression: repeating loops (audio) or sections (AI), with chord names. */
+function ChordView({ scan, onSeek, onAi, onAudio }: { scan: ChordScan; onSeek?: (t: number) => void; onAi?: () => void; onAudio?: () => void }) {
+  const names = (prog: string) => parseProgression(prog, scan.key).map((c) => chordName(c, scan.key)).join(" ");
+  const keyLabel = KEY_OPTIONS[scan.key]?.label ?? "";
+  const rows = scan.source === "audio" ? scan.patterns ?? [] : scan.sections ?? [];
+  return (
+    <div className="ref-chords">
+      <div className="ref-chords-head">
+        <b>CHORDS</b>
+        <span className={scan.source === "audio" ? "auto" : "ai-badge"}>{scan.source === "audio" ? "AUTO" : "AI・要確認"}</span>
+        {rows.length > 0 && <span className="muted small">Key {keyLabel}</span>}
+        <span className="ref-chords-tools">
+          {onAi && (
+            <button className="link-btn" onClick={onAi} title="AI に、この曲のコード進行を聞く">
+              AI に聞く
+            </button>
+          )}
+          {onAudio && (
+            <button className="link-btn" onClick={onAudio} title="添付音源から抽出し直す">
+              音源から
+            </button>
+          )}
+        </span>
+      </div>
+      {rows.length === 0 && (
+        <p className="muted small">
+          {scan.source === "ai" ? "この曲のコード進行は分かりませんでした。音源を添付すると、そこから抽出できます。" : "くり返す進行が見つかりませんでした。"}
+        </p>
+      )}
+      <ul className="ref-chord-rows">
+        {scan.source === "audio"
+          ? (scan.patterns ?? []).map((p) => (
+              <li key={p.prog}>
+                <button className="chord-time" disabled={!onSeek} onClick={() => onSeek?.(p.at)} title={onSeek ? "ここから聴く" : undefined}>
+                  {clock(p.at)}
+                </button>
+                <span className="chord-prog">
+                  <b>{p.prog}</b>
+                  <small>{names(p.prog)}</small>
+                </span>
+                <span className="chord-count">×{p.count}</span>
+                <button className="link-btn" onClick={() => void copy(p.prog)} title="コピー">
+                  コピー
+                </button>
+              </li>
+            ))
+          : (scan.sections ?? []).map((s, i) => (
+              <li key={i}>
+                <span className="chord-sec">{s.name}</span>
+                <span className="chord-prog">
+                  <b>{s.prog}</b>
+                  <small>{names(s.prog)}</small>
+                </span>
+                <button className="link-btn" onClick={() => void copy(`${s.name} ${s.prog}`)} title="コピー">
+                  コピー
+                </button>
+              </li>
+            ))}
+      </ul>
+      {scan.source === "ai" && (scan.sections ?? []).length > 1 && (
+        <button className="link-btn" onClick={() => void copy((scan.sections ?? []).map((s) => `${s.name}: ${s.prog}`).join(" "))}>
+          全セクションをまとめてコピー
+        </button>
+      )}
+      {scan.note && <p className="muted small">{scan.note}</p>}
+      {scan.source === "audio" && (scan.timeline ?? []).length > 0 && (
+        <details className="chord-timeline">
+          <summary>全体の流れ(4 小節ごと)</summary>
+          <ul>
+            {(scan.timeline ?? []).map((r, i) => (
+              <li key={i}>
+                <button className="chord-time" disabled={!onSeek} onClick={() => onSeek?.(r.at)}>
+                  {clock(r.at)}
+                </button>
+                <span>{r.prog}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </div>
   );
