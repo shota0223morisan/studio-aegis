@@ -855,7 +855,7 @@ async function start() {
   // Per-launch secret: only this app's window carries it, so other apps / browsers can't use the API.
   const sessionToken = crypto.randomBytes(32).toString("hex");
   try {
-    await createServer({ store, webDir: webDir(), port: PORT, sessionToken });
+    await createServer({ store, webDir: webDir(), port: PORT, sessionToken, openExternal: (url) => void shell.openExternal(url) });
   } catch (err) {
     dialog.showErrorBox(
       `${APP_NAME} を起動できません`,

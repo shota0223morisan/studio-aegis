@@ -33,6 +33,7 @@ export function SettingsPage() {
       <AiSettings />
 
       <NotionSettings />
+      <SunoSettings />
 
       {desktop && (
         <section className="card">
@@ -288,6 +289,48 @@ function AiSettings() {
           <option value="sonnet">Sonnet(速い)</option>
         </select>
       </div>
+    </section>
+  );
+}
+
+function SunoSettings() {
+  const [status, setStatus] = useState<{ connected: boolean; error?: string } | null>(null);
+  const load = () =>
+    api
+      .sunoStatus()
+      .then(setStatus)
+      .catch(() => setStatus({ connected: false }));
+  useEffect(() => {
+    void load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, []);
+  return (
+    <section className="card">
+      <div className="section-head">
+        <h2>Suno</h2>
+      </div>
+      <p className="muted small">
+        Suno の公式 MCP に、Suno のアカウントでつなぎます(API キーは不要)。曲のページの「SUNO STUDIO」で、音源のカバーや続き、MIDI から曲を作り、WAV やステムを曲のファイルに保存できます。作るときは Suno のクレジットを使います。
+      </p>
+      {status === null ? (
+        <p className="muted small">確認中…</p>
+      ) : status.connected ? (
+        <p>
+          接続済み{" "}
+          <button className="btn ghost small" onClick={() => void api.sunoLogout().then(load)}>
+            切断
+          </button>
+        </p>
+      ) : (
+        <p>
+          <button className="btn primary small" onClick={() => void api.sunoLogin().then((r) => !desktop && window.open(r.url, "_blank", "noreferrer"))}>
+            Suno に接続
+          </button>{" "}
+          <span className="muted small">ブラウザが開きます。許可したら、ここに戻ってください。</span>
+        </p>
+      )}
+      {status?.error && <p className="error small">{status.error}</p>}
     </section>
   );
 }

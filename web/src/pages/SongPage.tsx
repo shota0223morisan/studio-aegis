@@ -25,6 +25,7 @@ import { LayerStage } from "../components/flow/LayerStage";
 import { MixingStage } from "../components/flow/MixingStage";
 import { ShipStage } from "../components/flow/ShipStage";
 import { Parking, SunoHelper } from "../components/flow/SideTools";
+import { SunoStudio } from "../components/flow/SunoStudio";
 
 /** One song's workspace, laid out as the 5-stage production flow. */
 export function SongPage({ session }: { session: Session }) {
@@ -233,6 +234,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
           )}
           <AiChat projectId={project.id} stage={view} quick={QUICK[view] ?? []} />
           {(view === 2 || view === 3) && <SunoHelper projectId={project.id} />}
+          {view >= 2 && <SunoStudio projectId={project.id} files={project.files} onFilesChange={props.onFilesChange} />}
           {(view === 2 || view === 3) && <Parking stage={view} flow={flow} update={update} />}
         </aside>
       </div>

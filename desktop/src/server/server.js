@@ -9,6 +9,7 @@ const { newId, now } = require("./db");
 const { createSpotifyRouter, fetchOEmbedTitle, parseSpotifyRef } = require("./spotify");
 const { createNotionRouter } = require("./notion");
 const { createFlowRouter } = require("./flow");
+const { createSuno } = require("./suno");
 
 const FILE_CATEGORIES = ["client_ref", "deliverable", "other"];
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
@@ -63,7 +64,7 @@ function isHttpUrl(value) {
  * @param {number} opts.port
  * @param {string} opts.sessionToken  value of the aegis_session cookie the window carries
  */
-function createServer({ store, webDir, port, sessionToken }) {
+function createServer({ store, webDir, port, sessionToken, openExternal }) {
   const { db, filesDir } = store;
   const origin = `http://127.0.0.1:${port}`;
   const projectDir = (id) => path.join(filesDir, id);
@@ -158,6 +159,27 @@ function createServer({ store, webDir, port, sessionToken }) {
 
   app.use("/api/spotify", createSpotifyRouter(store, { redirectUri: `${origin}/api/spotify/callback` }));
   app.use("/api/notion", createNotionRouter(store));
+  const suno = createSuno(store, {
+    redirectUri: `${origin}/suno/callback`,
+    openExternal,
+    // Tests point these at a stand-in Suno; unset in normal use.
+    ...(process.env.AEGIS_SUNO_MCP_URL ? { mcpUrl: process.env.AEGIS_SUNO_MCP_URL, resourceMetaUrl: process.env.AEGIS_SUNO_META_URL } : {}),
+    filePath: (f) => path.join(projectDir(f.project_id), f.stored_name),
+    midiPath: (id) => path.join(store.midiDir, `${id}.mid`),
+    addFile: (projectId, name, data, category) => {
+      const id = newId();
+      const stored = `${id}${extOf(name)}`;
+      fs.mkdirSync(projectDir(projectId), { recursive: true });
+      fs.writeFileSync(path.join(projectDir(projectId), stored), data);
+      db.prepare(
+        "INSERT INTO files (id, project_id, category, original_name, stored_name, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(id, projectId, FILE_CATEGORIES.includes(category) ? category : "other", name, stored, mimeFor(name), data.length, now());
+      touch(projectId);
+      return serializeFile(getFile(id));
+    },
+  });
+  app.get("/suno/callback", (req, res) => void suno.callback(req, res));
+  app.use("/api", suno.router);
   app.use("/api", createFlowRouter(store));
 
   // ---- clients (取引先) ----

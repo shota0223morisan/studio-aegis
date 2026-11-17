@@ -118,6 +118,37 @@ export interface Prefs {
   aiModel: "claude" | "fable" | "opus" | "sonnet";
 }
 
+export interface SunoClip {
+  id: string;
+  title: string;
+  status: string;
+  songUrl: string;
+  imageUrl: string;
+  duration: number | null;
+  error?: string;
+}
+export interface SunoStemGroup {
+  mode: "two" | "twelve";
+  status: string;
+  groupId?: string;
+  items: { id: string; name: string; take: number | null; status: string }[];
+  error?: string;
+}
+export interface SunoJob {
+  id: string;
+  projectId: string;
+  action: "cover" | "extend" | "midi";
+  sourceName: string;
+  style: string;
+  description: string;
+  status: "uploading" | "generating" | "done" | "error";
+  clips: SunoClip[];
+  stems: Record<string, SunoStemGroup>;
+  error?: string;
+  needLogin?: boolean;
+  createdAt: string;
+}
+
 export interface AiMessage {
   id: string;
   stage: number;
@@ -274,6 +305,18 @@ export const api = {
     request<{ clip: MidiClip; comment: string }>(`/api/projects/${id}/ai/midi`, json("POST", body)),
 
   arrangeMidi: (clipId: string, prompt: string) => request<{ clip: MidiClip; comment: string }>(`/api/midi/${clipId}/arrange`, json("POST", { prompt })),
+  sunoStatus: () => request<{ connected: boolean; usage?: any; error?: string }>("/api/suno/status"),
+  sunoLogin: () => request<{ url: string }>("/api/suno/login", json("POST", {})),
+  sunoLogout: () => request("/api/suno/logout", json("POST", {})),
+  sunoJobs: (projectId: string) => request<{ items: SunoJob[] }>(`/api/projects/${projectId}/suno/jobs`),
+  sunoStart: (
+    projectId: string,
+    body: { action: SunoJob["action"]; fileId?: string; midiClipId?: string; clipId?: string; clipName?: string; style?: string; description?: string; continueAt?: number },
+  ) => request<SunoJob>(`/api/projects/${projectId}/suno/jobs`, json("POST", body)),
+  sunoDeleteJob: (jobId: string) => request(`/api/suno/jobs/${jobId}`, json("DELETE")),
+  sunoDownload: (jobId: string, clipId: string, body: { format?: "wav" | "mp3"; confirm?: boolean; name?: string }) =>
+    request<{ requiresCredit?: boolean; file?: StoredFile }>(`/api/suno/jobs/${jobId}/clips/${clipId}/download`, json("POST", body)),
+  sunoStems: (jobId: string, clipId: string, mode: "two" | "twelve") => request<SunoJob>(`/api/suno/jobs/${jobId}/clips/${clipId}/stems`, json("POST", { mode })),
   listMidi: (params: { project?: string; kind?: string; q?: string }) =>
     request<{ items: MidiClip[] }>(`/api/midi?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`),
   updateMidi: (clipId: string, patch: { name?: string; kind?: string; projectId?: null }) => request<MidiClip>(`/api/midi/${clipId}`, json("PATCH", patch)),

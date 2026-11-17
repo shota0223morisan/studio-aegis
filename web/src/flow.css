@@ -521,3 +521,27 @@ input.midi-name:hover { border-color: var(--border); }
 .arrange-form { display: flex; gap: 6px; }
 .arrange-form input { flex: 1; min-width: 0; font-size: 13px; }
 .icon-btn.on { color: var(--accent); border-color: var(--accent); }
+
+/* ---- SUNO STUDIO ---- */
+.suno-connect { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.suno-form { display: flex; flex-direction: column; gap: 6px; }
+.suno-form select, .suno-form input { width: 100%; font-size: 13px; }
+.suno-form .segmented { align-self: flex-start; }
+.suno-form > .btn { align-self: flex-end; }
+.suno-at { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.suno-at input { width: 80px !important; }
+.suno-jobs { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.suno-job { padding: 8px 10px; border-radius: var(--radius-input); border: 1px solid var(--border); background: color-mix(in srgb, var(--text) 3%, transparent); }
+.suno-job.s-uploading, .suno-job.s-generating { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.suno-job.s-error { border-color: color-mix(in srgb, var(--danger) 50%, var(--border)); }
+.suno-job-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.suno-job-head .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.suno-status { margin-left: auto; font: 11px var(--mono); color: var(--accent); white-space: nowrap; }
+.s-done .suno-status { color: var(--ok); }
+.s-error .suno-status { color: var(--danger); }
+.suno-job > p { margin: 4px 0 0; }
+.suno-clip { margin-top: 6px; }
+.suno-clip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.suno-clip-title { font-weight: 600; font-size: 13px; flex: 1 1 120px; min-width: 0; }
+.suno-stems { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.suno-stems .chip-btn { font-size: 11px; }
