@@ -273,6 +273,7 @@ export const api = {
   aiMidi: (id: string, body: { kind: string; bars: number; prompt: string; section?: string; refClipId?: string }) =>
     request<{ clip: MidiClip; comment: string }>(`/api/projects/${id}/ai/midi`, json("POST", body)),
 
+  arrangeMidi: (clipId: string, prompt: string) => request<{ clip: MidiClip; comment: string }>(`/api/midi/${clipId}/arrange`, json("POST", { prompt })),
   listMidi: (params: { project?: string; kind?: string; q?: string }) =>
     request<{ items: MidiClip[] }>(`/api/midi?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`),
   updateMidi: (clipId: string, patch: { name?: string; kind?: string; projectId?: null }) => request<MidiClip>(`/api/midi/${clipId}`, json("PATCH", patch)),

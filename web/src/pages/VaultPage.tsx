@@ -90,6 +90,7 @@ export function VaultPage() {
                 const u = await api.updateMidi(c.id, { name });
                 setItems((x) => x.map((y) => (y.id === u.id ? u : y)));
               }}
+              onArranged={(n) => setItems((x) => [n, ...x])}
               extra={
                 <>
                   <select

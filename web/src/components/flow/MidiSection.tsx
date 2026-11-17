@@ -178,6 +178,10 @@ export function MidiSection({
                 const u = await api.updateMidi(c.id, { name });
                 setClips((x) => x.map((y) => (y.id === u.id ? u : y)));
               }}
+              onArranged={(n, comment) => {
+                setClips((x) => [n, ...x]);
+                setComment(comment || null);
+              }}
               extra={
                 <>
                   <button className="icon-btn" title="ヒューマナイズ(タイミング・強さを揺らした版を作る)" onClick={() => void humanizeClip(c)}>

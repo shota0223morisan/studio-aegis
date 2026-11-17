@@ -512,3 +512,12 @@ input.midi-name:hover { border-color: var(--border); }
 .chord-lookup-result > p { display: flex; align-items: baseline; gap: 8px; margin: 4px 0; }
 .chord-lookup-result > p .link-btn { margin-left: auto; }
 .chord-sources { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); }
+
+/* ---- MIDI: arrange into a new clip ---- */
+
+.arrange-panel { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding: 8px 0 2px; border-top: 1px dashed var(--border); margin-top: 4px; cursor: default; }
+.arrange-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.arrange-presets .chip-btn { font-size: 11.5px; }
+.arrange-form { display: flex; gap: 6px; }
+.arrange-form input { flex: 1; min-width: 0; font-size: 13px; }
+.icon-btn.on { color: var(--accent); border-color: var(--accent); }

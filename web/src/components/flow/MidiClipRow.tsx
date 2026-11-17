@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { MidiClip } from "../../lib/api";
+import { api, type MidiClip } from "../../lib/api";
+import { toast } from "../../lib/toast";
 import { desktop } from "../../lib/desktop";
 import { playClip } from "../../lib/midiPlayer";
 
@@ -45,10 +46,78 @@ export function PianoRoll({ clip }: { clip: MidiClip }) {
   );
 }
 
+/** Ready-made asks for "arrange this clip into a new one", per kind. */
+const ARRANGE_PRESETS: Partial<Record<MidiClip["kind"], string[]>> & { default: string[] } = {
+  bass: ["ロックで動き回るベースに(経過音・オクターブ・16分のフィル)", "ルートのまま休符とシンコペーションでノリを出す", "ファンク/スラップ寄りに", "ウォーキングベースに", "シンプルに(長めの音・ルート中心)"],
+  drums: ["小節の終わりにフィルを足す", "ハーフタイムに", "4つ打ちに", "ゴーストノートを足して人間らしく", "サビ向けに派手に"],
+  piano: ["8ビートのバッキングに", "アルペジオに", "16分で刻む", "テンションを足しておしゃれに"],
+  guitar: ["8分のパワーコードの刻みに", "カッティングに", "アルペジオに", "リフにする"],
+  chords: ["8ビートのバッキングに", "アルペジオに", "テンションを足しておしゃれに", "白玉(長い音)に"],
+  strings: ["白玉から動きのある対旋律に", "スタッカートの刻みに", "オクターブ上で華やかに"],
+  synth: ["アルペジオに", "16分のシーケンスに", "パッド(長い音)に"],
+  default: ["ヒューマナイズ(人間らしく揺らす)", "音数を半分に", "音数を増やして派手に", "1 オクターブ上で"],
+};
+
+/** "✦ アレンジ": make a new clip from this one in another style (same length and harmony). */
+function ArrangePanel({ clip, onDone }: { clip: MidiClip; onDone: (c: MidiClip, comment: string) => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const presets = [...(ARRANGE_PRESETS[clip.kind] ?? []), ...ARRANGE_PRESETS.default];
+  async function run(ask: string) {
+    if (!ask.trim() || busy) return;
+    setBusy(true);
+    try {
+      const r = await api.arrangeMidi(clip.id, ask.trim());
+      onDone(r.clip, r.comment);
+      toast(`新しい MIDI: ${r.clip.name}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "作れませんでした", { error: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="arrange-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="arrange-presets">
+        {presets.map((p) => (
+          <button key={p} className="chip-btn" disabled={busy} onClick={() => void run(p)}>
+            {p}
+          </button>
+        ))}
+      </div>
+      <form
+        className="arrange-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run(text);
+        }}
+      >
+        <input value={text} placeholder="どう変える?(例: 8分ベタ打ちを、ロックで動き回るベースに)" onChange={(e) => setText(e.target.value)} />
+        <button className="btn primary small" disabled={busy || !text.trim()}>
+          {busy ? "作っています…" : "✦ 作る"}
+        </button>
+      </form>
+      <p className="muted small">長さと和音の流れはそのままで、新しい MIDI を別に作ります(元の MIDI は残ります)。</p>
+    </div>
+  );
+}
+
 /** One clip: preview, play, drag into the DAW, download. */
-export function MidiClipRow({ clip, extra, onRename }: { clip: MidiClip; extra?: React.ReactNode; onRename?: (name: string) => void }) {
+export function MidiClipRow({
+  clip,
+  extra,
+  onRename,
+  onArranged,
+}: {
+  clip: MidiClip;
+  extra?: React.ReactNode;
+  onRename?: (name: string) => void;
+  /** Show "✦ アレンジ"; called with the new clip. */
+  onArranged?: (clip: MidiClip, comment: string) => void;
+}) {
   const [playing, setPlaying] = useState<null | (() => void)>(null);
   const [name, setName] = useState(clip.name);
+  const [arranging, setArranging] = useState(false);
   return (
     <li
       className="midi-row"
@@ -99,8 +168,22 @@ export function MidiClipRow({ clip, extra, onRename }: { clip: MidiClip; extra?:
         <a className="icon-btn" href={clip.fileUrl} download title=".mid をダウンロード">
           ↓
         </a>
+        {onArranged && (
+          <button className={`icon-btn ${arranging ? "on" : ""}`} onClick={() => setArranging((v) => !v)} title="アレンジ: この MIDI から別のスタイルの MIDI を作る">
+            ✦
+          </button>
+        )}
         {extra}
       </div>
+      {arranging && onArranged && (
+        <ArrangePanel
+          clip={clip}
+          onDone={(c, comment) => {
+            setArranging(false);
+            onArranged(c, comment);
+          }}
+        />
+      )}
     </li>
   );
 }

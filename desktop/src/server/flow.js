@@ -412,6 +412,80 @@ function createFlowRouter(store) {
   });
 
   /** Use a library clip in another song (a copy, so each song keeps its own). Body: { projectId } */
+  // Rework a clip into a new one: same length and harmony, a new style ("8分ベタ打ちのベース → ロックで動き回る").
+  router.post("/midi/:clipId/arrange", async (req, res) => {
+    const c = getClip(req.params.clipId);
+    if (!c) return res.status(404).json({ error: "MIDI が見つかりません" });
+    const ask = str(req.body?.prompt, 2000)?.trim();
+    if (!ask) return res.status(400).json({ error: "どう変えたいかを書いてください" });
+    const clip = serializeClip(c);
+    const p = c.project_id ? getProject(c.project_id) : null;
+    const bars = clip.bars || Math.max(1, Math.ceil(Math.max(0, ...clip.tracks.flatMap((t) => t.notes.map((n) => n.s + n.d))) / 4));
+    const beats = bars * 4;
+    const bpm = clip.bpm || 120;
+    const drums = clip.tracks.some((t) => t.channel === 9);
+    const schema = {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "新しいクリップ名(日本語可・短く)" },
+        comment: { type: "string", description: "どう変えたかのひとこと(日本語)" },
+        tracks: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              drums: { type: "boolean" },
+              notes: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: { p: { type: "integer" }, s: { type: "number" }, d: { type: "number" }, v: { type: "integer" } },
+                  required: ["p", "s", "d", "v"],
+                },
+              },
+            },
+            required: ["name", "drums", "notes"],
+          },
+        },
+      },
+      required: ["name", "comment", "tracks"],
+    };
+    const prompt =
+      (p ? `${songContext(db, p)}\n\n` : "") +
+      `下の MIDI を元に、新しい MIDI を作ってください。\n本人の希望: ${ask}` +
+      referenceNote(clip, { arrange: true }) +
+      `\n\n守ること: 長さは同じ ${bars} 小節(4/4・合計 ${beats} 拍、すべてのノートは 0 以上 ${beats} 拍未満)。` +
+      (drums
+        ? "ドラムのノート番号の割り当ては元の MIDI と同じにする。"
+        : "元の MIDI が表している和音の流れ(ベースならルートの動き)と音域はおおむね保つ。経過音・オクターブ・休符・リズムで希望のスタイルにする。") +
+      "DAW に貼ってそのまま使える、楽器として弾ける自然なものを。";
+    try {
+      const out = await ai.run({ system: systemFor(p?.stage ?? 2), prompt, schema, model: prefs().aiModel, signal: abortOnClose(req, res) });
+      const tracks = normalizeTracks(out.structured?.tracks, beats);
+      if (!tracks.some((t) => t.notes.length)) throw new ai.AiError("ノートが 1 つもない MIDI が返ってきました。もう一度試してください");
+      const id = newId();
+      fs.writeFileSync(midiPath(id), toMidiFile(tracks, bpm));
+      res.status(201).json({
+        clip: insertClip({
+          id,
+          project_id: c.project_id,
+          name: str(out.structured?.name, 200)?.trim() || `${c.name} → ${ask.slice(0, 20)}`,
+          kind: c.kind,
+          bpm,
+          bars,
+          data: JSON.stringify({ tracks }),
+          source: "ai",
+          prompt: `元: ${c.name} / ${ask}`,
+          created_at: now(),
+        }),
+        comment: str(out.structured?.comment, 1000) ?? "",
+      });
+    } catch (err) {
+      aiError(res, err);
+    }
+  });
+
   router.post("/midi/:clipId/copy", (req, res) => {
     const c = getClip(req.params.clipId);
     const target = typeof req.body?.projectId === "string" ? getProject(req.body.projectId) : null;
@@ -738,7 +812,7 @@ function classifyTrack(t) {
 }
 
 /** A reference clip for the AI: note mapping (drum kit!), feel, and the notes themselves. */
-function referenceNote(clip) {
+function referenceNote(clip, { arrange = false } = {}) {
   const notes = clip.tracks.flatMap((t) => t.notes.map((n) => ({ ...n, drum: t.channel === 9 }))).sort((a, b) => a.s - b.s);
   if (!notes.length) return "";
   const pitches = new Map();
@@ -753,7 +827,9 @@ function referenceNote(clip) {
     `\n使っているノート番号(回数): ${[...pitches].sort((a, b) => b[1] - a[1]).map(([p, c]) => `${p}(${c})`).join(", ")}` +
     `\nベロシティ: ${Math.min(...vel)}〜${Math.max(...vel)}` +
     `\nノート(ノート番号@開始拍:長さ:ベロシティ): ${list}${notes.length > 320 ? " …" : ""}` +
-    "\nこの参考 MIDI のノート番号の割り当て(特にドラムはこの番号どおりに)・リズムの癖・ベロシティの付け方を踏襲すること。本人の希望が「ヒューマナイズ」「アレンジ」などの場合は、この MIDI を元に作り変える。"
+    (arrange
+      ? "\nこれは作り変える元の MIDI。和音の流れ(ドラムならノート番号の割り当て)は保ち、リズム・動き・音数・ベロシティは本人の希望に合わせて変えてよい。"
+      : "\nこの参考 MIDI のノート番号の割り当て(特にドラムはこの番号どおりに)・リズムの癖・ベロシティの付け方を踏襲すること。本人の希望が「ヒューマナイズ」「アレンジ」などの場合は、この MIDI を元に作り変える。")
   );
 }
 
