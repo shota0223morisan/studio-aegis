@@ -4,7 +4,7 @@ import { api, type Session } from "./lib/api";
 import { desktop, type PanePreset, type PaneState, type UpdateInfo } from "./lib/desktop";
 import { LibraryProvider } from "./lib/library";
 import { PrefsProvider } from "./lib/prefs";
-import { toast, useToast } from "./lib/toast";
+import { useToast } from "./lib/toast";
 import { useFold } from "./lib/fold";
 import { useTickSparkles } from "./lib/fx";
 import { installInputGuards } from "./lib/inputGuards";
@@ -21,6 +21,7 @@ import { Sidebar } from "./components/Sidebar";
 import { UpdateButton } from "./components/UpdateButton";
 import { PaneDivider } from "./components/PaneDivider";
 import { ScratchMemoDock } from "./components/MemoDock";
+import { SpliceDock } from "./components/SpliceDock";
 
 export function App() {
   const location = useLocation();
@@ -50,8 +51,6 @@ function Shell() {
   useFold();
   useTickSparkles();
   useEffect(() => installInputGuards(), []);
-  // A sound downloaded in the Splice pane: say where it went.
-  useEffect(() => desktop?.onSpliceDownloaded((rec) => toast(`Splice の素材を保存: ${rec.name}(曲のページの SPLICE TRAY から DAW へドラッグ)`, { ms: 6000 })), []);
   useEffect(() => setOverlay(false), [location.pathname, narrow]);
 
   useEffect(() => {
@@ -151,6 +150,7 @@ function Shell() {
             </main>
             <div id="memo-slot" className="memo-slot" />
             {!location.pathname.startsWith("/p/") && <ScratchMemoDock />}
+            <SpliceDock />
           </div>
           {note && (
             <div key={note.id} className={`toast ${note.error ? "error" : ""}`} role="status">
