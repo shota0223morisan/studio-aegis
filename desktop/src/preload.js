@@ -29,6 +29,16 @@ contextBridge.exposeInMainWorld("aegisDesktop", {
   onPaneState: (cb) => subscribe("pane-state", cb),
   /** Start dragging a MIDI clip's file out of the app (e.g. into Logic / Ableton). */
   dragMidi: (clipId) => ipcRenderer.send("app:dragMidi", clipId),
+  spliceDownloads: () => ipcRenderer.invoke("splice:downloads"),
+  dragSpliceFile: (p) => ipcRenderer.send("splice:drag", p),
+  revealSpliceFile: (p) => ipcRenderer.invoke("splice:reveal", p),
+  forgetSpliceFile: (p) => ipcRenderer.invoke("splice:forget", p),
+  openSpliceFolder: () => ipcRenderer.invoke("splice:openFolder"),
+  onSpliceDownloaded: (cb) => {
+    const h = (_e, rec) => cb(rec);
+    ipcRenderer.on("splice:downloaded", h);
+    return () => ipcRenderer.removeListener("splice:downloaded", h);
+  },
   copyText: (text) => ipcRenderer.invoke("app:copyText", text),
   getInfo: () => ipcRenderer.invoke("app:info"),
   openDataFolder: () => ipcRenderer.invoke("app:openDataFolder"),

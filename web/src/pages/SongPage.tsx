@@ -26,6 +26,7 @@ import { MixingStage } from "../components/flow/MixingStage";
 import { ShipStage } from "../components/flow/ShipStage";
 import { Parking, SunoHelper } from "../components/flow/SideTools";
 import { SunoStudio } from "../components/flow/SunoStudio";
+import { SpliceTray } from "../components/flow/SpliceTray";
 
 /** One song's workspace, laid out as the 5-stage production flow. */
 export function SongPage({ session }: { session: Session }) {
@@ -233,6 +234,7 @@ function SongWorkspace({ id, session }: { id: string; session: Session }) {
             <GatePanel stage={view} checks={gateChecks} current={current} mode={prefs.gate} onAdvance={(m) => void advance(m)} onToggle={toggleCheck} compact={view === 4} />
           )}
           <AiChat projectId={project.id} stage={view} quick={QUICK[view] ?? []} />
+          {view >= 2 && view <= 4 && <SpliceTray />}
           {(view === 2 || view === 3) && <SunoHelper projectId={project.id} />}
           {view >= 2 && <SunoStudio projectId={project.id} files={project.files} onFilesChange={props.onFilesChange} />}
           {(view === 2 || view === 3) && <Parking stage={view} flow={flow} update={update} />}

@@ -263,10 +263,65 @@ function createTabsView(side) {
   return view;
 }
 
+// ---- Splice downloads → a folder + the app's tray, to drag into the DAW ----
+// splice.com in a browser can't drag sounds into a DAW (that's the Splice desktop app's job),
+// but it can download them: those downloads land in ~/Music/Session Partner/Splice and show up
+// in the app's Splice tray, where each one drags straight into the DAW.
+const spliceDir = () => path.join(app.getPath("music"), "Session Partner", "Splice");
+const SPLICE_KV = "splice.downloads";
+const spliceSessions = new WeakSet();
+function uniquePath(dir, name) {
+  const safe = String(name || "sample").replace(/[\\/:*?"<>|]/g, "_").slice(0, 160);
+  const ext = path.extname(safe);
+  const base = safe.slice(0, safe.length - ext.length);
+  let p = path.join(dir, safe);
+  for (let i = 2; fs.existsSync(p); i++) p = path.join(dir, `${base} (${i})${ext}`);
+  return p;
+}
+function spliceDownloads() {
+  return (store?.kvGet(SPLICE_KV) ?? []).filter((d) => fs.existsSync(d.path));
+}
+function watchSpliceDownloads(ses) {
+  if (spliceSessions.has(ses)) return;
+  spliceSessions.add(ses);
+  ses.on("will-download", (_e, item) => {
+    const dir = spliceDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const dest = uniquePath(dir, item.getFilename());
+    item.setSavePath(dest);
+    item.once("done", (_ev, state) => {
+      if (state !== "completed") return;
+      const rec = { path: dest, name: path.basename(dest), size: item.getTotalBytes(), at: new Date().toISOString() };
+      store?.kvSet(SPLICE_KV, [rec, ...spliceDownloads().filter((d) => d.path !== dest)].slice(0, 300));
+      appView?.webContents.send("splice:downloaded", rec);
+    });
+  });
+}
+const inSpliceDir = (p) => {
+  const rel = path.relative(spliceDir(), path.resolve(String(p)));
+  return rel && !rel.startsWith("..") && !path.isAbsolute(rel);
+};
+ipcMain.handle("splice:downloads", () => spliceDownloads());
+ipcMain.handle("splice:openFolder", () => {
+  fs.mkdirSync(spliceDir(), { recursive: true });
+  return shell.openPath(spliceDir());
+});
+ipcMain.handle("splice:reveal", (_e, p) => {
+  if (inSpliceDir(p) && fs.existsSync(p)) shell.showItemInFolder(p);
+});
+ipcMain.handle("splice:forget", (_e, p) => {
+  store?.kvSet(SPLICE_KV, spliceDownloads().filter((d) => d.path !== p));
+});
+ipcMain.on("splice:drag", (e, p) => {
+  if (!inSpliceDir(p) || !fs.existsSync(p)) return;
+  e.sender.startDrag({ file: path.resolve(p), icon: nativeImage.createFromPath(DRAG_ICON) });
+});
+
 function ensureContent(name) {
   if (content[name]) return content[name];
   const tab = TABS[name];
   prepareSession(session.fromPartition(tab.partition));
+  if (name === "splice") watchSpliceDownloads(session.fromPartition(tab.partition));
   // Own persistent session per site so logins are remembered across launches.
   const view = new WebContentsView({ webPreferences: { partition: tab.partition, contextIsolation: true, sandbox: true } });
   const contents = view.webContents;

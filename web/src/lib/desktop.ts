@@ -17,6 +17,13 @@ export interface UpdateProgress {
   error?: string;
 }
 
+export interface SpliceDownload {
+  path: string;
+  name: string;
+  size: number;
+  at: string;
+}
+
 export type PaneTab = "splice" | "suno" | "web" | "amazon" | "ytmusic" | "spotify";
 export type PaneSide = "left" | "right";
 export type PanePreset = "listen" | "build" | "polish" | "focus";
@@ -69,6 +76,12 @@ export interface AegisDesktop {
   paneDragEnd: () => void;
   onPaneState: (cb: (state: PaneState) => void) => () => void;
   dragMidi: (clipId: string) => void;
+  spliceDownloads: () => Promise<SpliceDownload[]>;
+  dragSpliceFile: (path: string) => void;
+  revealSpliceFile: (path: string) => Promise<void>;
+  forgetSpliceFile: (path: string) => Promise<void>;
+  openSpliceFolder: () => Promise<void>;
+  onSpliceDownloaded: (cb: (rec: SpliceDownload) => void) => () => void;
   copyText: (text: string) => Promise<void>;
   getInfo: () => Promise<{ version: string; dataDir: string }>;
   openDataFolder: () => Promise<void>;
