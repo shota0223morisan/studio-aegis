@@ -413,16 +413,25 @@ function createFlowRouter(store) {
 
   /** Use a library clip in another song (a copy, so each song keeps its own). Body: { projectId } */
   // Rework a clip into a new one: same length and harmony, a new style ("8分ベタ打ちのベース → ロックで動き回る").
+  // Long clips (a whole song) go in 8-bar chunks, 3 at a time, then are joined back into one clip;
+  // the client polls /midi/arrange-progress/:token while it runs.
+  const arrangeProgress = new Map(); // token → { done, total }
+  router.get("/midi/arrange-progress/:token", (req, res) => res.json(arrangeProgress.get(req.params.token) ?? null));
   router.post("/midi/:clipId/arrange", async (req, res) => {
     const c = getClip(req.params.clipId);
     if (!c) return res.status(404).json({ error: "MIDI が見つかりません" });
     const ask = str(req.body?.prompt, 2000)?.trim();
     if (!ask) return res.status(400).json({ error: "どう変えたいかを書いてください" });
+    const token = str(req.body?.token, 64) ?? "";
     const clip = serializeClip(c);
     const p = c.project_id ? getProject(c.project_id) : null;
-    const bars = clip.bars || Math.max(1, Math.ceil(Math.max(0, ...clip.tracks.flatMap((t) => t.notes.map((n) => n.s + n.d))) / 4));
-    const beats = bars * 4;
-    const bpm = clip.bpm || 120;
+    const lastBeat = Math.max(0, ...clip.tracks.flatMap((t) => t.notes.map((n) => n.s + n.d)));
+    const totalBars = Math.max(1, clip.bars || Math.ceil(lastBeat / 4));
+    // Optional range (1-based bars, inclusive).
+    const from = Math.max(1, Math.min(totalBars, Number(req.body?.fromBar) || 1));
+    const to = Math.max(from, Math.min(totalBars, Number(req.body?.toBar) || totalBars));
+    const projectBpm = p ? Number(String(parseFlow(p).analysis?.bpm ?? "").match(/\d+(\.\d+)?/)?.[0]) : 0;
+    const bpm = clip.bpm || projectBpm || 120;
     const drums = clip.tracks.some((t) => t.channel === 9);
     const schema = {
       type: "object",
@@ -451,38 +460,92 @@ function createFlowRouter(store) {
       },
       required: ["name", "comment", "tracks"],
     };
-    const prompt =
-      (p ? `${songContext(db, p)}\n\n` : "") +
-      `下の MIDI を元に、新しい MIDI を作ってください。\n本人の希望: ${ask}` +
-      referenceNote(clip, { arrange: true }) +
-      `\n\n守ること: 長さは同じ ${bars} 小節(4/4・合計 ${beats} 拍、すべてのノートは 0 以上 ${beats} 拍未満)。` +
-      (drums
-        ? "ドラムのノート番号の割り当ては元の MIDI と同じにする。"
-        : "元の MIDI が表している和音の流れ(ベースならルートの動き)と音域はおおむね保つ。経過音・オクターブ・休符・リズムで希望のスタイルにする。") +
-      "DAW に貼ってそのまま使える、楽器として弾ける自然なものを。";
-    try {
-      const out = await ai.run({ system: systemFor(p?.stage ?? 2), prompt, schema, model: prefs().aiModel, signal: abortOnClose(req, res) });
+    const CHUNK = 8;
+    const chunks = [];
+    if (to - from + 1 <= 16) chunks.push([from, to]);
+    else for (let b = from; b <= to; b += CHUNK) chunks.push([b, Math.min(to, b + CHUNK - 1)]);
+    const progress = { done: 0, total: chunks.length };
+    if (token) arrangeProgress.set(token, progress);
+    const context = p ? `${songContext(db, p)}\n\n` : "";
+
+    /** One chunk: the source notes of bars [a, b], shifted to start at 0, reworked by the AI. */
+    async function arrangeChunk([a, b], signal) {
+      const off = (a - 1) * 4;
+      const beats = (b - a + 1) * 4;
+      const part = {
+        ...clip,
+        bars: b - a + 1,
+        tracks: clip.tracks.map((t) => ({
+          ...t,
+          notes: t.notes.filter((n) => n.s >= off && n.s < off + beats).map((n) => ({ ...n, s: n.s - off, d: Math.min(n.d, off + beats - n.s) })),
+        })),
+      };
+      const where = chunks.length > 1 || totalBars > b - a + 1 ? `(全 ${totalBars} 小節のうち ${a}〜${b} 小節目。前後の部分も同じ方針で別に作り、あとでつなぎます)` : "";
+      const prompt =
+        context +
+        `下の MIDI を元に、新しい MIDI を作ってください${where}。\n本人の希望: ${ask}` +
+        referenceNote(part, { arrange: true }) +
+        `\n\n守ること: 長さは同じ ${b - a + 1} 小節(4/4・合計 ${beats} 拍、すべてのノートは 0 以上 ${beats} 拍未満)。` +
+        (drums
+          ? "ドラムのノート番号の割り当ては元の MIDI と同じにする。"
+          : "元の MIDI が表している和音の流れ(ベースならルートの動き)と音域はおおむね保つ。経過音・オクターブ・休符・リズムで希望のスタイルにする。") +
+        "DAW に貼ってそのまま使える、楽器として弾ける自然なものを。";
+      const out = await ai.run({ system: systemFor(p?.stage ?? 2), prompt, schema, model: prefs().aiModel, signal });
       const tracks = normalizeTracks(out.structured?.tracks, beats);
-      if (!tracks.some((t) => t.notes.length)) throw new ai.AiError("ノートが 1 つもない MIDI が返ってきました。もう一度試してください");
+      progress.done += 1;
+      return { tracks: tracks.map((t) => ({ ...t, notes: t.notes.map((n) => ({ ...n, s: n.s + (a - from) * 4 })) })), name: out.structured?.name, comment: out.structured?.comment };
+    }
+
+    try {
+      const signal = abortOnClose(req, res);
+      const results = new Array(chunks.length);
+      let next = 0;
+      const worker = async () => {
+        while (next < chunks.length) {
+          const i = next++;
+          try {
+            results[i] = await arrangeChunk(chunks[i], signal);
+          } catch (err) {
+            if (signal.aborted) throw err;
+            results[i] = await arrangeChunk(chunks[i], signal); // one retry per chunk
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
+      // Join the chunks: tracks with the same name (and drum flag) become one.
+      const merged = new Map();
+      for (const r of results) {
+        for (const t of r.tracks) {
+          const key = `${t.name}|${t.channel === 9}`;
+          if (!merged.has(key)) merged.set(key, { ...t, notes: [] });
+          merged.get(key).notes.push(...t.notes);
+        }
+      }
+      const tracks = [...merged.values()].filter((t) => t.notes.length);
+      if (!tracks.length) throw new ai.AiError("ノートが 1 つもない MIDI が返ってきました。もう一度試してください");
+      const bars = to - from + 1;
       const id = newId();
       fs.writeFileSync(midiPath(id), toMidiFile(tracks, bpm));
+      const range = from === 1 && to === totalBars ? "" : ` ${from}-${to}小節`;
       res.status(201).json({
         clip: insertClip({
           id,
           project_id: c.project_id,
-          name: str(out.structured?.name, 200)?.trim() || `${c.name} → ${ask.slice(0, 20)}`,
+          name: (chunks.length === 1 && str(results[0].name, 200)?.trim()) || `${c.name}${range} → ${ask.slice(0, 20)}`,
           kind: c.kind,
           bpm,
           bars,
           data: JSON.stringify({ tracks }),
           source: "ai",
-          prompt: `元: ${c.name} / ${ask}`,
+          prompt: `元: ${c.name}${range} / ${ask}`,
           created_at: now(),
         }),
-        comment: str(out.structured?.comment, 1000) ?? "",
+        comment: str(results[0].comment, 1000) ?? "",
       });
     } catch (err) {
       aiError(res, err);
+    } finally {
+      if (token) setTimeout(() => arrangeProgress.delete(token), 60_000);
     }
   });
 

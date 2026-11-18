@@ -63,17 +63,29 @@ const ARRANGE_PRESETS: Partial<Record<MidiClip["kind"], string[]>> & { default: 
 function ArrangePanel({ clip, onDone }: { clip: MidiClip; onDone: (c: MidiClip, comment: string) => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const totalBars = Math.max(1, clip.bars ?? Math.ceil(Math.max(0, ...clip.tracks.flatMap((t) => t.notes.map((n) => n.s + n.d))) / 4));
+  const [range, setRange] = useState({ from: "1", to: String(totalBars) });
   const presets = [...(ARRANGE_PRESETS[clip.kind] ?? []), ...ARRANGE_PRESETS.default];
+  const from = Math.max(1, Math.min(totalBars, Number(range.from) || 1));
+  const to = Math.max(from, Math.min(totalBars, Number(range.to) || totalBars));
+  const span = to - from + 1;
+  const calls = span <= 16 ? 1 : Math.ceil(span / 8);
   async function run(ask: string) {
     if (!ask.trim() || busy) return;
+    if (calls > 1 && !window.confirm(`${span} 小節あるので、8 小節ずつ ${calls} 回に分けて AI に作ってもらい、つなぎます(数分かかります)。よいですか？`)) return;
     setBusy(true);
+    const token = Math.random().toString(36).slice(2);
+    const poll = calls > 1 ? window.setInterval(() => void api.arrangeProgress(token).then(setProgress).catch(() => {}), 2000) : undefined;
     try {
-      const r = await api.arrangeMidi(clip.id, ask.trim());
+      const r = await api.arrangeMidi(clip.id, { prompt: ask.trim(), fromBar: from, toBar: to, token });
       onDone(r.clip, r.comment);
       toast(`新しい MIDI: ${r.clip.name}`);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "作れませんでした", { error: true });
+      toast(e instanceof Error ? e.message : "作れませんでした", { error: true, ms: 8000 });
     } finally {
+      window.clearInterval(poll);
+      setProgress(null);
       setBusy(false);
     }
   }
@@ -95,9 +107,19 @@ function ArrangePanel({ clip, onDone }: { clip: MidiClip; onDone: (c: MidiClip, 
       >
         <input value={text} placeholder="どう変える?(例: 8分ベタ打ちを、ロックで動き回るベースに)⌘Enter で作る" onChange={(e) => setText(e.target.value)} />
         <button className="btn primary small" disabled={busy || !text.trim()}>
-          {busy ? "作っています…" : "✦ 作る"}
+          {busy ? (progress ? `作っています… ${progress.done} / ${progress.total}` : "作っています…") : "✦ 作る"}
         </button>
       </form>
+      {totalBars > 8 && (
+        <label className="arrange-range">
+          <span>範囲</span>
+          <input inputMode="numeric" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} disabled={busy} />
+          〜
+          <input inputMode="numeric" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} disabled={busy} />
+          <span>小節目(全 {totalBars} 小節)</span>
+          {calls > 1 && <span className="muted">8 小節ずつ {calls} 回に分けて作り、つなぎます</span>}
+        </label>
+      )}
       <p className="muted small">長さと和音の流れはそのままで、新しい MIDI を別に作ります(元の MIDI は残ります)。</p>
     </div>
   );

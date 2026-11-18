@@ -304,7 +304,9 @@ export const api = {
   aiMidi: (id: string, body: { kind: string; bars: number; prompt: string; section?: string; refClipId?: string }) =>
     request<{ clip: MidiClip; comment: string }>(`/api/projects/${id}/ai/midi`, json("POST", body)),
 
-  arrangeMidi: (clipId: string, prompt: string) => request<{ clip: MidiClip; comment: string }>(`/api/midi/${clipId}/arrange`, json("POST", { prompt })),
+  arrangeMidi: (clipId: string, body: { prompt: string; fromBar?: number; toBar?: number; token?: string }) =>
+    request<{ clip: MidiClip; comment: string }>(`/api/midi/${clipId}/arrange`, json("POST", body)),
+  arrangeProgress: (token: string) => request<{ done: number; total: number } | null>(`/api/midi/arrange-progress/${token}`),
   sunoStatus: () => request<{ connected: boolean; usage?: any; error?: string }>("/api/suno/status"),
   sunoLogin: () => request<{ url: string }>("/api/suno/login", json("POST", {})),
   sunoLogout: () => request("/api/suno/logout", json("POST", {})),

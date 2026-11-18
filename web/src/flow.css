@@ -560,3 +560,5 @@ input.midi-name:hover { border-color: var(--border); }
 .midi-drop-target b { font-size: 15px; }
 .midi-drop-target small { color: var(--muted); font-size: 12px; }
 .vault-drop .midi-drop-overlay { position: fixed; inset: 80px 40px 40px 280px; }
+.arrange-range { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.arrange-range input { width: 56px; font-size: 12px; padding: 3px 6px; text-align: center; }
