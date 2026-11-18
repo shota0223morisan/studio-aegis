@@ -84,7 +84,7 @@ export function Parking({ stage, flow, update }: { stage: number; flow: Flow; up
           setText("");
         }}
       >
-        <input className="park-input" value={text} placeholder="ミックスでやること → 後回し" onChange={(e) => setText(e.target.value)} />
+        <input className="park-input" value={text} placeholder="ミックスでやること → 後回し(⌘Enter)" onChange={(e) => setText(e.target.value)} />
       </form>
       {items.length > 0 && (
         <ul className="park-list">

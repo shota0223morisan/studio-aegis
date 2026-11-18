@@ -38,7 +38,7 @@ export function NewSongForm({ clientId, onDone }: { clientId?: string | null; on
       )}
       <input
         autoFocus
-        placeholder="曲名(例: 夏 CM 15 秒 / ○○ 新曲)"
+        placeholder="曲名(⌘Enter で作る)"
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === "Escape" && onDone?.()}

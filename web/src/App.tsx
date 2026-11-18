@@ -7,6 +7,7 @@ import { PrefsProvider } from "./lib/prefs";
 import { useToast } from "./lib/toast";
 import { useFold } from "./lib/fold";
 import { useTickSparkles } from "./lib/fx";
+import { installInputGuards } from "./lib/inputGuards";
 import { usePane } from "./lib/usePane";
 import { HomePage } from "./pages/HomePage";
 import { ClientsPage } from "./pages/ClientsPage";
@@ -48,6 +49,7 @@ function Shell() {
   const note = useToast();
   useFold();
   useTickSparkles();
+  useEffect(() => installInputGuards(), []);
   useEffect(() => setOverlay(false), [location.pathname, narrow]);
 
   useEffect(() => {

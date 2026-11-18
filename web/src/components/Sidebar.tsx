@@ -64,7 +64,7 @@ export function Sidebar({ open, onToggle }: { open: boolean; onToggle: () => voi
     <form className="side-add" onSubmit={submit}>
       <input
         autoFocus
-        placeholder={placeholder}
+        placeholder={`${placeholder}(⌘Enter)`}
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === "Escape" && setAdding(null)}

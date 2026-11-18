@@ -227,7 +227,7 @@ function ChordRows({ flow, update, projectId, bpm }: Pick<StageProps, "flow" | "
             applyLine();
           }}
         >
-          <input value={line} placeholder="一言で: サビ 4536 A: 1645 B 2536 / 6フラット7フラット1" onChange={(e) => setLine(e.target.value)} />
+          <input value={line} placeholder="一言で: サビ 4536 A: 1645 / 6フラット7フラット1(⌘Enter で反映)" onChange={(e) => setLine(e.target.value)} />
         </form>
       </div>
       <div className="chord-lookup">
@@ -247,7 +247,7 @@ function ChordRows({ flow, update, projectId, bpm }: Pick<StageProps, "flow" | "
           }}
         >
           <input value={song.title} placeholder="曲名" onChange={(e) => setSong({ ...song, title: e.target.value })} />
-          <input value={song.artist} placeholder="アーティスト" onChange={(e) => setSong({ ...song, artist: e.target.value })} />
+          <input value={song.artist} placeholder="アーティスト(⌘Enter で調べる)" onChange={(e) => setSong({ ...song, artist: e.target.value })} />
           <button className="btn small" disabled={looking || !song.title.trim()} title="AI がネットで調べて、度数で出します">
             {looking ? "調べています…" : "ネットで調べる"}
           </button>

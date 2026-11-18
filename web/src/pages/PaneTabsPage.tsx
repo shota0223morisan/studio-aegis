@@ -109,7 +109,7 @@ export function PaneTabsPage() {
           <input
             className="address"
             value={address}
-            placeholder="URL か検索ワード(Google)"
+            placeholder="URL か検索ワード(⌘Enter で開く)"
             onFocus={(e) => {
               setEditing(true);
               e.currentTarget.select();

@@ -3,6 +3,7 @@ import { api, type MidiClip } from "../../lib/api";
 import type { Flow } from "../../lib/flow";
 import { MIDI_CHANGED } from "../../lib/midiEvents";
 import { importSongMidi } from "../../lib/songImport";
+import { MidiDrop } from "../MidiDrop";
 import { humanize } from "../../lib/theory";
 import { toast } from "../../lib/toast";
 import { KIND_LABELS, MidiClipRow } from "./MidiClipRow";
@@ -64,7 +65,7 @@ export function MidiSection({
     }
   }
 
-  async function upload(files: FileList | null) {
+  async function upload(files: FileList | File[] | null) {
     for (const f of Array.from(files ?? [])) {
       try {
         const clip = await api.uploadMidi(f, projectId);
@@ -102,6 +103,7 @@ export function MidiSection({
   }
 
   return (
+    <MidiDrop onFiles={(f) => void upload(f)} onSong={(f) => void importSong(f)}>
     <section className="card midi-card">
       <div className="section-head">
         <span className="sec-index">{index}</span>
@@ -113,7 +115,7 @@ export function MidiSection({
         <button className="btn ghost small" onClick={() => setPicker((v) => !v)}>
           倉庫
         </button>
-        <button className="btn ghost small" onClick={() => fileInput.current?.click()}>
+        <button className="btn ghost small" onClick={() => fileInput.current?.click()} title=".mid を選ぶ(この欄にドラッグしても入れられます)">
           .mid
         </button>
         <input ref={fileInput} type="file" accept=".mid,.midi,audio/midi" multiple hidden onChange={(e) => (void upload(e.target.files), (e.target.value = ""))} />
@@ -159,7 +161,7 @@ export function MidiSection({
             </option>
           ))}
         </select>
-        <input value={prompt} placeholder="希望(任意)" onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !busy && void generate()} />
+        <input value={prompt} placeholder="希望(任意・⌘Enter で作る)" onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !busy && void generate()} />
         <button className="btn primary small" disabled={busy !== null} onClick={() => void generate()}>
           {busy === "ai" ? "生成中…" : "✦ AI"}
         </button>
@@ -204,6 +206,7 @@ export function MidiSection({
         </ul>
       )}
     </section>
+    </MidiDrop>
   );
 }
 

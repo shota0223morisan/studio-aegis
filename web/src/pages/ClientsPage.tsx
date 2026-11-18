@@ -35,7 +35,7 @@ export function ClientsPage() {
         <h1>取引先</h1>
       </div>
       <form className="new-project" onSubmit={submit}>
-        <input placeholder="新しい取引先名(例: ○○レコード / △△広告)" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+        <input placeholder="新しい取引先名(⌘Enter で追加)" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
         <button className="btn primary" disabled={!name.trim()}>
           ＋ 追加
         </button>

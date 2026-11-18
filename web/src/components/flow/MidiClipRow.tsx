@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type MidiClip } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { markDragOut } from "../../lib/inputGuards";
 import { desktop } from "../../lib/desktop";
 import { playClip } from "../../lib/midiPlayer";
 
@@ -92,7 +93,7 @@ function ArrangePanel({ clip, onDone }: { clip: MidiClip; onDone: (c: MidiClip, 
           void run(text);
         }}
       >
-        <input value={text} placeholder="どう変える?(例: 8分ベタ打ちを、ロックで動き回るベースに)" onChange={(e) => setText(e.target.value)} />
+        <input value={text} placeholder="どう変える?(例: 8分ベタ打ちを、ロックで動き回るベースに)⌘Enter で作る" onChange={(e) => setText(e.target.value)} />
         <button className="btn primary small" disabled={busy || !text.trim()}>
           {busy ? "作っています…" : "✦ 作る"}
         </button>
@@ -125,6 +126,7 @@ export function MidiClipRow({
       onDragStart={(e) => {
         if (!desktop) return;
         e.preventDefault();
+        markDragOut();
         desktop.dragMidi(clip.id);
       }}
       title={desktop ? "DAW へドラッグ" : undefined}
@@ -137,6 +139,7 @@ export function MidiClipRow({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => name.trim() && name !== clip.name && onRename(name.trim())}
+            data-enter="commit"
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
         ) : (

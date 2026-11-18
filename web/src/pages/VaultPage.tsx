@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type MidiClip } from "../lib/api";
 import { KIND_LABELS, MidiClipRow } from "../components/flow/MidiClipRow";
+import { MidiDrop } from "../components/MidiDrop";
 
 const KINDS = Object.keys(KIND_LABELS) as MidiClip["kind"][];
 
@@ -37,7 +38,7 @@ export function VaultPage() {
     return () => window.clearTimeout(t);
   }, [q, kind]);
 
-  async function upload(files: FileList | null) {
+  async function upload(files: FileList | File[] | null) {
     setError(null);
     for (const f of Array.from(files ?? [])) {
       try {
@@ -50,6 +51,7 @@ export function VaultPage() {
   }
 
   return (
+    <MidiDrop className="vault-drop" onFiles={(f) => void upload(f)} onSong={(f) => void importSong(f)}>
     <div className="page vault-page">
       <div className="page-head">
         <div>
@@ -128,5 +130,6 @@ export function VaultPage() {
         <p className="muted empty">空です</p>
       )}
     </div>
+    </MidiDrop>
   );
 }

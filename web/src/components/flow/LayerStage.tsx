@@ -51,7 +51,7 @@ export function LayerStage({ project, flow, update }: StageProps) {
               setCustom("");
             }}
           >
-            <input value={custom} placeholder="＋ ほか" onChange={(e) => setCustom(e.target.value)} />
+            <input value={custom} placeholder="＋ ほか(⌘Enter で追加)" onChange={(e) => setCustom(e.target.value)} />
           </form>
         </div>
       </section>

@@ -106,6 +106,7 @@ function PreExportCheck({ flow, update }: Pick<StageProps, "flow" | "update">) {
               {editing === it.id ? (
                 <input
                   className="check-edit"
+                  data-enter="commit"
                   autoFocus
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
@@ -175,7 +176,7 @@ function PreExportCheck({ flow, update }: Pick<StageProps, "flow" | "update">) {
           setDraft("");
         }}
       >
-        <input value={draft} placeholder="＋ 項目" onChange={(e) => setDraft(e.target.value)} />
+        <input value={draft} placeholder="＋ 項目(⌘Enter で追加)" onChange={(e) => setDraft(e.target.value)} />
       </form>
       {list.deleted.length > 0 && (
         <details className="check-deleted">

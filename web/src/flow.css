@@ -545,3 +545,18 @@ input.midi-name:hover { border-color: var(--border); }
 .suno-clip-title { font-weight: 600; font-size: 13px; flex: 1 1 120px; min-width: 0; }
 .suno-stems { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .suno-stems .chip-btn { font-size: 11px; }
+
+/* ---- MIDI: drop .mid files ---- */
+.midi-drop { position: relative; }
+.midi-drop-overlay {
+  position: absolute; inset: 0; z-index: 20; display: flex; gap: 10px; padding: 10px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(3px);
+}
+.midi-drop-target {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 12px;
+  border: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent); border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.midi-drop-target.song { border-color: color-mix(in srgb, var(--accent-2, var(--accent)) 70%, transparent); }
+.midi-drop-target b { font-size: 15px; }
+.midi-drop-target small { color: var(--muted); font-size: 12px; }
+.vault-drop .midi-drop-overlay { position: fixed; inset: 80px 40px 40px 280px; }
