@@ -258,7 +258,8 @@ body.resizing { cursor: col-resize; user-select: none; }
 .page-actions { display: flex; gap: 8px; }
 .new-project { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .new-project select { max-width: 200px; }
-.new-project input { flex: 1; font-size: 15px; }
+.new-project input.new-client-name { flex: 0 1 220px; min-width: 160px; }
+.new-project input { flex: 1 1 240px; font-size: 15px; }
 .project-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
 .project-card {
   display: block; text-decoration: none;
